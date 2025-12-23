@@ -130,7 +130,7 @@ export const schemas = {
     },
     timestamps: true
   },
-    // Category model
+  // Test model
   Test: {
     tableName: 'tests',
     fields: {

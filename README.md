@@ -4,12 +4,17 @@ Node.js REST API server with JWT authentication and MySQL database.
 
 ## Features
 
-- 🔐 JWT Token Authentication
-- 🗄️ MySQL Database Integration
+- 🔐 JWT Token Authentication with Refresh Tokens
+- 🗄️ MySQL Database Integration with Sequelize ORM
 - 🛣️ RESTful API Routes
-- 🎯 MVC Architecture (Controllers, Managers)
+- 🎯 Modular Architecture (Feature-based modules)
 - 🔒 Authentication Middleware
-- ✅ Input Validation
+- ✅ Input Validation with Error Codes
+- 📝 Winston Logging (File + Console)
+- 📊 Morgan HTTP Request Logging
+- 🔄 Auto-generate Models, Migrations & Modules
+- 📚 Swagger API Documentation
+- 🎨 Centralized Error Handling
 
 ## Project Structure
 
@@ -86,6 +91,21 @@ npm start
 
 Server will run on `http://localhost:3000` (or your configured PORT)
 
+## API Documentation
+
+Interactive API documentation is available via Swagger UI:
+
+```
+http://localhost:3000/api-docs
+```
+
+Features:
+- 📖 Complete API reference with examples
+- 🔐 Built-in authentication (click "Authorize" to add JWT token)
+- 🧪 Test endpoints directly from the browser
+- 📝 Request/response schemas
+- ✅ Auto-updated when new modules are generated
+
 ## API Endpoints
 
 ### Authentication
@@ -116,6 +136,25 @@ Content-Type: application/json
 #### Verify Token
 ```
 GET /api/auth/verify
+Authorization: Bearer <token>
+```
+
+#### Refresh Access Token
+```
+POST /api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "<your_refresh_token>"
+}
+
+// Or send in header:
+X-Refresh-Token: <your_refresh_token>
+```
+
+#### Logout
+```
+POST /api/auth/logout
 Authorization: Bearer <token>
 ```
 
@@ -173,10 +212,68 @@ GET /api/health
 - **Express.js** - Web framework
 - **Sequelize** - ORM for MySQL
 - **MySQL2** - Database driver
-- **JWT** - Token authentication
+- **JWT** - Token authentication (access + refresh tokens)
 - **Bcrypt** - Password hashing
+- **Winston** - Advanced logging system
+- **Morgan** - HTTP request logger
+- **Swagger** - API documentation (swagger-jsdoc + swagger-ui-express)
 - **CORS** - Cross-origin resource sharing
 - **Dotenv** - Environment configuration
+
+## Code Generator
+
+Automatically generate complete modules with a single command:
+
+```bash
+# Generate model, migration, controller, manager, and routes
+npm run generate:model <ModelName>
+
+# Example:
+npm run generate:model Product
+```
+
+This creates:
+- ✅ Sequelize model with validations
+- ✅ Database migration file
+- ✅ Manager (business logic)
+- ✅ Controller (HTTP handlers)
+- ✅ Routes with Swagger docs
+- ✅ Auto-updates models/index.js and routes/index.js
+
+Define your schema in `database/schema-definition.js` before generating.
+
+## Error Handling
+
+Centralized error handling with error codes:
+
+```javascript
+import { AppError, COMMON_ERRORS } from './middleware/errorHandler.js';
+
+// Use common errors
+throw new AppError(COMMON_ERRORS.NOT_FOUND);
+throw new AppError(COMMON_ERRORS.UNAUTHORIZED);
+throw new AppError(COMMON_ERRORS.BAD_REQUEST);
+
+// Or custom errors
+throw new AppError('Custom message', 400, true, 'CUSTOM_CODE');
+```
+
+Frontend receives:
+```json
+{
+  "success": false,
+  "status": "fail",
+  "message": "Resource not found",
+  "code": "NOT_FOUND"
+}
+```
+
+## Logging
+
+Logs are written to:
+- `logs/error.log` - Error logs only
+- `logs/combined.log` - All logs
+- Console - Development output
 
 ## Database Commands
 
