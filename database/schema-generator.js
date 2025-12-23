@@ -174,7 +174,7 @@ if (!fs.existsSync(modulePath)) {
 
 // Generate Manager
 const managerContent = `import db from '../../../database/models/index.js';
-import { AppError } from '../../middleware/errorHandler.js';
+import { AppError, COMMON_ERRORS } from '../../middleware/errorHandler.js';
 
 const { ${modelName} } = db;
 
@@ -188,7 +188,7 @@ class ${modelName}Manager {
     const item = await ${modelName}.findByPk(id);
 
     if (!item) {
-      throw new AppError('${modelName} not found', 404);
+      throw new AppError(COMMON_ERRORS.NOT_FOUND);
     }
 
     return item;
@@ -203,7 +203,7 @@ class ${modelName}Manager {
     const item = await ${modelName}.findByPk(id);
     
     if (!item) {
-      throw new AppError('${modelName} not found', 404);
+      throw new AppError(COMMON_ERRORS.NOT_FOUND);
     }
 
     await item.update(data);
@@ -214,7 +214,7 @@ class ${modelName}Manager {
     const item = await ${modelName}.findByPk(id);
 
     if (!item) {
-      throw new AppError('${modelName} not found', 404);
+      throw new AppError(COMMON_ERRORS.NOT_FOUND);
     }
 
     await item.destroy();
