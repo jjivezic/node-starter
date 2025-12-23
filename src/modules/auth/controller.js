@@ -6,12 +6,6 @@ class AuthController {
   register = catchAsync(async (req, res) => {
     const { email, password, name } = req.body;
 
-    // Validate input
-    if (!email || !password || !name) {
-      logger.warn(`Registration attempt failed: Missing fields from ${req.ip},email:${email}`);
-      throw new AppError('Email, password, and name are required', 400);
-    }
-
     const user = await authManager.register(email, password, name);
     logger.info(`New user registered: ${email} from ${req.ip}`);
 
@@ -24,12 +18,6 @@ class AuthController {
 
   login = catchAsync(async (req, res) => {
     const { email, password } = req.body;
-
-    // Validate input
-    if (!email || !password) {
-      logger.warn(`Login attempt failed: Missing credentials from ${req.ip},email:${email}`);
-      throw new AppError('Email and password are required', 400);
-    }
 
     const result = await authManager.login(email, password);
     logger.info(`User logged in: ${email} from ${req.ip}`);

@@ -39,9 +39,9 @@
     // Security
     "no-process-exit": "off",
 
-     "no-trailing-spaces": "off",
-     "comma-dangle": "off",
-
-      "indent": ["error", 2]
+    "no-trailing-spaces": "off",
+    "comma-dangle": "off",
+    "indent": ["error", 2],
+    "newline-per-chained-call": "off"
   }
 }

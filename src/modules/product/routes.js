@@ -1,6 +1,8 @@
 import express from 'express';
 import productController from './controller.js';
 import authMiddleware from '../../middleware/authMiddleware.js';
+import { validate } from '../../middleware/validate.js';
+import { createProductSchema, updateProductSchema, idParamSchema } from './validation.js';
 
 const router = express.Router();
 
@@ -52,7 +54,7 @@ router.get('/', productController.getAll);
  *       404:
  *         description: Product not found
  */
-router.get('/:id', productController.getById);
+router.get('/:id', validate(idParamSchema, 'params'), productController.getById);
 
 /**
  * @swagger
@@ -94,7 +96,7 @@ router.get('/:id', productController.getById);
  *       400:
  *         description: Validation error
  */
-router.post('/', productController.create);
+router.post('/', validate(createProductSchema), productController.create);
 
 /**
  * @swagger
@@ -131,7 +133,7 @@ router.post('/', productController.create);
  *       404:
  *         description: Product not found
  */
-router.put('/:id', productController.update);
+router.put('/:id', validate(idParamSchema, 'params'), validate(updateProductSchema), productController.update);
 
 /**
  * @swagger
@@ -153,6 +155,6 @@ router.put('/:id', productController.update);
  *       404:
  *         description: Product not found
  */
-router.delete('/:id', productController.delete);
+router.delete('/:id', validate(idParamSchema, 'params'), productController.delete);
 
 export default router;

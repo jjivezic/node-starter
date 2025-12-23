@@ -1,6 +1,8 @@
 import express from 'express';
 import userController from './controller.js';
 import authMiddleware from '../../middleware/authMiddleware.js';
+import { validate } from '../../middleware/validate.js';
+import { updateUserSchema, idParamSchema } from './validation.js';
 
 const router = express.Router();
 
@@ -55,7 +57,7 @@ router.get('/profile', userController.getProfile);
  *       404:
  *         description: User not found
  */
-router.get('/:id', userController.getUserById);
+router.get('/:id', validate(idParamSchema, 'params'), userController.getUserById);
 
 /**
  * @swagger
@@ -91,7 +93,7 @@ router.get('/:id', userController.getUserById);
  *       404:
  *         description: User not found
  */
-router.put('/:id', userController.updateUser);
+router.put('/:id', validate(idParamSchema, 'params'), validate(updateUserSchema), userController.updateUser);
 
 /**
  * @swagger
@@ -113,6 +115,6 @@ router.put('/:id', userController.updateUser);
  *       404:
  *         description: User not found
  */
-router.delete('/:id', userController.deleteUser);
+router.delete('/:id', validate(idParamSchema, 'params'), userController.deleteUser);
 
 export default router;

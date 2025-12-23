@@ -1,6 +1,8 @@
 import express from 'express';
 import authController from './controller.js';
 import authMiddleware from '../../middleware/authMiddleware.js';
+import { validate } from '../../middleware/validate.js';
+import { registerSchema, loginSchema, refreshTokenSchema } from './validation.js';
 
 const router = express.Router();
 
@@ -37,7 +39,7 @@ const router = express.Router();
  *       400:
  *         description: Validation error
  */
-router.post('/register', authController.register);
+router.post('/register', validate(registerSchema), authController.register);
 
 /**
  * @swagger
@@ -79,7 +81,7 @@ router.post('/register', authController.register);
  *       401:
  *         description: Invalid credentials
  */
-router.post('/login', authController.login);
+router.post('/login', validate(loginSchema), authController.login);
 
 /**
  * @swagger
@@ -119,7 +121,7 @@ router.get('/verify', authMiddleware, authController.verifyToken);
  *       401:
  *         description: Invalid refresh token
  */
-router.post('/refresh', authController.refresh);
+router.post('/refresh', validate(refreshTokenSchema), authController.refresh);
 
 /**
  * @swagger

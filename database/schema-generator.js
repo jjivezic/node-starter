@@ -301,10 +301,105 @@ class ${modelName}Controller {
 export default new ${modelName}Controller();
 `;
 
+// Generate Joi validation schemas
+function generateJoiValidation(fields) {
+  const createFields = [];
+  const updateFields = [];
+
+  Object.entries(fields).forEach(([fieldName, config]) => {
+    if (fieldName === 'id') return; // Skip id field
+
+    let joiType = 'string()';
+    const messages = [];
+
+    // Map Sequelize types to Joi types
+    if (config.type.startsWith('INTEGER')) {
+      joiType = 'number().integer()';
+      messages.push(`'number.base': '${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} must be a number'`);
+      messages.push(`'number.integer': '${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} must be an integer'`);
+    } else if (config.type.startsWith('DECIMAL') || config.type.startsWith('FLOAT')) {
+      joiType = 'number()';
+      messages.push(`'number.base': '${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} must be a number'`);
+    } else if (config.type === 'BOOLEAN') {
+      joiType = 'boolean()';
+    } else if (config.type === 'DATE') {
+      joiType = 'date()';
+    } else if (config.type.startsWith('STRING')) {
+      const match = config.type.match(/STRING\((\d+)\)/);
+      const maxLength = match ? match[1] : '255';
+      joiType = `string().max(${maxLength})`;
+      messages.push(`'string.max': '${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} must not exceed ${maxLength} characters'`);
+    } else if (config.type === 'TEXT') {
+      joiType = 'string()';
+    }
+
+    // Add validation rules
+    if (config.validate) {
+      if (config.validate.isEmail) {
+        joiType += '.email()';
+        messages.push(`'string.email': 'Please provide a valid email address'`);
+      }
+      if (config.validate.min !== undefined) {
+        joiType += `.min(${config.validate.min})`;
+        messages.push(`'number.min': '${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} cannot be less than ${config.validate.min}'`);
+      }
+      if (config.validate.notEmpty) {
+        messages.push(`'string.empty': '${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} is required'`);
+      }
+    }
+
+    // Build create field (required)
+    const isRequired = config.allowNull === false && !config.defaultValue;
+    const createValidation = isRequired ? `${joiType}.required()` : `${joiType}.optional()`;
+    if (isRequired) {
+      messages.push(`'any.required': '${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} is required'`);
+    }
+
+    const messagesStr = messages.length > 0 ? `.messages({\n      ${messages.join(',\n      ')}\n    })` : '';
+    createFields.push(`  ${fieldName}: Joi.${createValidation}${messagesStr}`);
+
+    // Build update field (optional)
+    const updateValidation = `${joiType}.optional()`;
+    const updateMessages = messages.filter(m => !m.includes('any.required') && !m.includes('string.empty'));
+    const updateMessagesStr = updateMessages.length > 0 ? `.messages({\n      ${updateMessages.join(',\n      ')}\n    })` : '';
+    updateFields.push(`  ${fieldName}: Joi.${updateValidation}${updateMessagesStr}`);
+  });
+
+  return {
+    createFields: createFields.join(',\n'),
+    updateFields: updateFields.join(',\n')
+  };
+}
+
+const validation = generateJoiValidation(schema.fields);
+
+const validationContent = `import Joi from 'joi';
+
+export const create${modelName}Schema = Joi.object({
+${validation.createFields}
+});
+
+export const update${modelName}Schema = Joi.object({
+${validation.updateFields}
+}).min(1).messages({
+  'object.min': 'At least one field must be provided for update'
+});
+
+export const idParamSchema = Joi.object({
+  id: Joi.number().integer().positive().required().messages({
+    'number.base': 'ID must be a number',
+    'number.positive': 'ID must be a positive number',
+    'any.required': 'ID is required'
+  })
+});
+`;
+
 // Generate Routes
 const routesContent = `import express from 'express';
 import ${moduleName}Controller from './controller.js';
 import authMiddleware from '../../middleware/authMiddleware.js';
+import { validate } from '../../middleware/validate.js';
+import { create${modelName}Schema, update${modelName}Schema, idParamSchema } from './validation.js';
 
 const router = express.Router();
 
@@ -345,7 +440,7 @@ router.get('/', ${moduleName}Controller.getAll);
  *       404:
  *         description: ${modelName} not found
  */
-router.get('/:id', ${moduleName}Controller.getById);
+router.get('/:id', validate(idParamSchema, 'params'), ${moduleName}Controller.getById);
 
 /**
  * @swagger
@@ -367,7 +462,7 @@ router.get('/:id', ${moduleName}Controller.getById);
  *       400:
  *         description: Validation error
  */
-router.post('/', ${moduleName}Controller.create);
+router.post('/', validate(create${modelName}Schema), ${moduleName}Controller.create);
 
 /**
  * @swagger
@@ -395,7 +490,7 @@ router.post('/', ${moduleName}Controller.create);
  *       404:
  *         description: ${modelName} not found
  */
-router.put('/:id', ${moduleName}Controller.update);
+router.put('/:id', validate(idParamSchema, 'params'), validate(update${modelName}Schema), ${moduleName}Controller.update);
 
 /**
  * @swagger
@@ -417,7 +512,7 @@ router.put('/:id', ${moduleName}Controller.update);
  *       404:
  *         description: ${modelName} not found
  */
-router.delete('/:id', ${moduleName}Controller.delete);
+router.delete('/:id', validate(idParamSchema, 'params'), ${moduleName}Controller.delete);
 
 export default router;
 `;
@@ -428,6 +523,9 @@ console.log(`✅ Manager created: src/modules/${moduleName}/manager.js`);
 
 fs.writeFileSync(path.join(modulePath, 'controller.js'), controllerContent);
 console.log(`✅ Controller created: src/modules/${moduleName}/controller.js`);
+
+fs.writeFileSync(path.join(modulePath, 'validation.js'), validationContent);
+console.log(`✅ Validation created: src/modules/${moduleName}/validation.js`);
 
 fs.writeFileSync(path.join(modulePath, 'routes.js'), routesContent);
 console.log(`✅ Routes created: src/modules/${moduleName}/routes.js`);
