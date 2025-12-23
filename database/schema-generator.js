@@ -159,8 +159,14 @@ ${Object.entries(schema.fields)
   tableName: '${schema.tableName}',
   timestamps: ${schema.timestamps || false},${schema.timestamps ? `
   createdAt: 'created_at',
-  updatedAt: 'updated_at',` : ''}${schema.indexes ? `
-  indexes: ${JSON.stringify(schema.indexes, null, 4)}` : ''}
+  updatedAt: 'updated_at',` : ''}${schema.indexes && schema.indexes.length > 0 ? `
+  indexes: [
+${schema.indexes.map(index => {
+  const fields = index.fields.map(f => `'${f}'`).join(', ');
+  const unique = index.unique ? ', unique: true' : '';
+  return `    { fields: [${fields}]${unique} }`;
+}).join(',\n')}
+  ]` : ''}
 });
 
 export default ${modelName};
@@ -214,7 +220,7 @@ class ${modelName}Manager {
     }
 
     await item.update(data);
-    return await this.getById(id);
+    return this.getById(id);
   }
 
   async delete(id) {
@@ -234,11 +240,11 @@ export default new ${modelName}Manager();
 
 // Generate Controller
 const controllerContent = `import ${moduleName}Manager from './manager.js';
-import { catchAsync, AppError } from '../../middleware/errorHandler.js';
+import { catchAsync } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 
 class ${modelName}Controller {
-  getAll = catchAsync(async (req, res, next) => {
+  getAll = catchAsync(async (req, res) => {
     const items = await ${moduleName}Manager.getAll();
 
     res.status(200).json({
@@ -247,7 +253,7 @@ class ${modelName}Controller {
     });
   });
 
-  getById = catchAsync(async (req, res, next) => {
+  getById = catchAsync(async (req, res) => {
     const { id } = req.params;
     const item = await ${moduleName}Manager.getById(id);
 
@@ -257,7 +263,7 @@ class ${modelName}Controller {
     });
   });
 
-  create = catchAsync(async (req, res, next) => {
+  create = catchAsync(async (req, res) => {
     const item = await ${moduleName}Manager.create(req.body);
     logger.info(\`${modelName} created: \${item.id}\`);
 
@@ -268,7 +274,7 @@ class ${modelName}Controller {
     });
   });
 
-  update = catchAsync(async (req, res, next) => {
+  update = catchAsync(async (req, res) => {
     const { id } = req.params;
     const item = await ${moduleName}Manager.update(id, req.body);
     logger.info(\`${modelName} updated: \${id}\`);
@@ -280,7 +286,7 @@ class ${modelName}Controller {
     });
   });
 
-  delete = catchAsync(async (req, res, next) => {
+  delete = catchAsync(async (req, res) => {
     const { id } = req.params;
     await ${moduleName}Manager.delete(id);
     logger.info(\`${modelName} deleted: \${id}\`);

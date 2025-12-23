@@ -126,8 +126,22 @@ export const schemas = {
       description: {
         type: 'TEXT',
         allowNull: true
+      },
+      user_id: {
+        type: 'INTEGER',
+        allowNull: false,
+        references: {
+          model: 'users',
+          key: 'id'
+        },
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       }
     },
+    indexes: [
+      { fields: ['user_id'] },
+      { fields: ['name'] }
+    ],
     timestamps: true
   },
   Test1: {
