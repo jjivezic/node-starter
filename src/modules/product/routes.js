@@ -1,0 +1,158 @@
+import express from 'express';
+import productController from './controller.js';
+import authMiddleware from '../../middleware/authMiddleware.js';
+
+const router = express.Router();
+
+// All routes require authentication
+//router.use(authMiddleware);
+
+/**
+ * @swagger
+ * /api/products:
+ *   get:
+ *     tags: [Products]
+ *     summary: Get all products
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of products
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Product'
+ */
+router.get('/', productController.getAll);
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   get:
+ *     tags: [Products]
+ *     summary: Get product by ID
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Product details
+ *       404:
+ *         description: Product not found
+ */
+router.get('/:id', productController.getById);
+
+/**
+ * @swagger
+ * /api/products:
+ *   post:
+ *     tags: [Products]
+ *     summary: Create a new product
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - price
+ *               - user_id
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Product Name
+ *               description:
+ *                 type: string
+ *                 example: Product description
+ *               price:
+ *                 type: number
+ *                 example: 99.99
+ *               stock:
+ *                 type: integer
+ *                 example: 100
+ *               user_id:
+ *                 type: integer
+ *                 example: 1
+ *     responses:
+ *       201:
+ *         description: Product created successfully
+ *       400:
+ *         description: Validation error
+ */
+router.post('/', productController.create);
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   put:
+ *     tags: [Products]
+ *     summary: Update a product
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               price:
+ *                 type: number
+ *               stock:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Product updated successfully
+ *       404:
+ *         description: Product not found
+ */
+router.put('/:id', productController.update);
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   delete:
+ *     tags: [Products]
+ *     summary: Delete a product
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Product deleted successfully
+ *       404:
+ *         description: Product not found
+ */
+router.delete('/:id', productController.delete);
+
+export default router;
