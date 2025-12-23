@@ -1,5 +1,5 @@
 import logger from '../config/logger.js';
-import ERROR_CODES, { COMMON_ERRORS } from '../config/errorCodes.js';
+import { ERROR_CODES, COMMON_ERRORS } from '../config/errorCodes.js';
 
 class AppError extends Error {
   constructor(message, statusCode, isOperational = true, code = null) {
@@ -19,7 +19,7 @@ class AppError extends Error {
     Error.captureStackTrace(this, this.constructor);
   }
 }
-
+// eslint-disable-next-line no-unused-vars
 const errorHandler = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
@@ -34,7 +34,7 @@ const errorHandler = (err, req, res, next) => {
       : ERROR_CODES.VALIDATION_ERROR;
     
     // Create human-readable error message
-    const errors = err.errors.map(e => {
+    const errors = err.errors.map((e) => {
       if (e.type === 'notNull Violation') {
         const field = e.path;
         return `${field.replace(/_/g, ' ')} is required`;
@@ -139,4 +139,6 @@ const catchAsync = (fn) => {
   };
 };
 
-export { AppError, errorHandler, catchAsync, ERROR_CODES, COMMON_ERRORS };
+export { 
+  AppError, errorHandler, catchAsync, ERROR_CODES, COMMON_ERRORS 
+};

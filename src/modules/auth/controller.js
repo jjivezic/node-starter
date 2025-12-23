@@ -3,7 +3,7 @@ import { catchAsync, AppError } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 
 class AuthController {
-  register = catchAsync(async (req, res, next) => {
+  register = catchAsync(async (req, res) => {
     const { email, password, name } = req.body;
 
     // Validate input
@@ -22,7 +22,7 @@ class AuthController {
     });
   });
 
-  login = catchAsync(async (req, res, next) => {
+  login = catchAsync(async (req, res) => {
     const { email, password } = req.body;
 
     // Validate input
@@ -41,7 +41,7 @@ class AuthController {
     });
   });
 
-  verifyToken = catchAsync(async (req, res, next) => {
+  verifyToken = catchAsync(async (req, res) => {
     // Token already verified by middleware
     res.status(200).json({
       success: true,
@@ -50,7 +50,7 @@ class AuthController {
     });
   });
 
-  refresh = catchAsync(async (req, res, next) => {
+  refresh = catchAsync(async (req, res) => {
     const refreshToken = req.headers['x-refresh-token'] || req.body.refreshToken;
 
     if (!refreshToken) {
@@ -67,7 +67,7 @@ class AuthController {
     });
   });
 
-  logout = catchAsync(async (req, res, next) => {
+  logout = catchAsync(async (req, res) => {
     await authManager.logout(req.user.id);
     logger.info(`User logged out: ${req.user.email}`);
 

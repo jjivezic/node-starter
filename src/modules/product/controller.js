@@ -1,9 +1,9 @@
 import productManager from './manager.js';
-import { catchAsync, AppError } from '../../middleware/errorHandler.js';
+import { catchAsync } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 
 class ProductController {
-  getAll = catchAsync(async (req, res, next) => {
+  getAll = catchAsync(async (req, res) => {
     const items = await productManager.getAll();
 
     res.status(200).json({
@@ -12,7 +12,7 @@ class ProductController {
     });
   });
 
-  getById = catchAsync(async (req, res, next) => {
+  getById = catchAsync(async (req, res) => {
     const { id } = req.params;
     const item = await productManager.getById(id);
 
@@ -22,7 +22,7 @@ class ProductController {
     });
   });
 
-  create = catchAsync(async (req, res, next) => {
+  create = catchAsync(async (req, res) => {
     const item = await productManager.create(req.body);
     logger.info(`Product created: ${item.id}`);
 
@@ -33,7 +33,7 @@ class ProductController {
     });
   });
 
-  update = catchAsync(async (req, res, next) => {
+  update = catchAsync(async (req, res) => {
     const { id } = req.params;
     const item = await productManager.update(id, req.body);
     logger.info(`Product updated: ${id}`);
@@ -45,7 +45,7 @@ class ProductController {
     });
   });
 
-  delete = catchAsync(async (req, res, next) => {
+  delete = catchAsync(async (req, res) => {
     const { id } = req.params;
     await productManager.delete(id);
     logger.info(`Product deleted: ${id}`);

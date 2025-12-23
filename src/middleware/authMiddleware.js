@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
-import { AppError, COMMON_ERRORS } from './errorHandler.js';
-import { catchAsync } from './errorHandler.js';
+import { AppError, COMMON_ERRORS, catchAsync } from './errorHandler.js';
 
 dotenv.config();
 

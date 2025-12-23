@@ -32,7 +32,7 @@ class ProductManager {
     }
 
     await item.update(data);
-    return await this.getById(id);
+    return this.getById(id);
   }
 
   async delete(id) {

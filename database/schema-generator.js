@@ -28,8 +28,9 @@ const modelPath = path.join(__dirname, 'models', `${modelName}.js`);
 const modulePath = path.join(__dirname, '..', 'src', 'modules', moduleName);
 
 if (fs.existsSync(modelPath) || fs.existsSync(modulePath)) {
-  console.error(`❌ ${modelName} already exists!`);
-  console.log(`   Model: ${fs.existsSync(modelPath) ? '✓' : '✗'}`);
+  console.error(`❌ ${modelName} already exists! ${modelPath} `);
+  //empty  spaces for proper indentation in the generated code 
+  console.log(`   Model: ${fs.existsSync(modelPath) ? '✓' : '✗'}`); 
   console.log(`   Module: ${fs.existsSync(modulePath) ? '✓' : '✗'}`);
   console.log('\nTo regenerate, delete the existing files first:');
   console.log(`   rm database/models/${modelName}.js`);
@@ -45,6 +46,7 @@ const filePath = path.join(__dirname, 'migrations', fileName);
 function generateFields(fields) {
   return Object.entries(fields)
     .map(([fieldName, config]) => {
+     //empty  spaces for proper indentation in the generated code 
       const lines = [`      ${fieldName}: {`];
       
       // Add type
@@ -122,6 +124,7 @@ const ${modelName} = sequelize.define('${modelName}', {
 ${Object.entries(schema.fields)
   .map(([fieldName, config]) => {
     const lines = [`  ${fieldName}: {`];
+     //empty  spaces for proper indentation in the generated code 
     lines.push(`    type: DataTypes.${config.type},`);
     if (config.primaryKey) lines.push('    primaryKey: true,');
     if (config.autoIncrement) lines.push('    autoIncrement: true,');
@@ -131,10 +134,14 @@ ${Object.entries(schema.fields)
       const value = typeof config.defaultValue === 'string' 
         ? `'${config.defaultValue}'` 
         : config.defaultValue;
-      lines.push(`    defaultValue: ${value},`);
+      lines.push(`    defaultValue: ${value},`); 
     }
     if (config.validate) {
-      lines.push(`    validate: ${JSON.stringify(config.validate)},`);
+      lines.push('    validate: {');
+      Object.entries(config.validate).forEach(([key, value]) => {
+        lines.push(`      ${key}: ${JSON.stringify(value)}`);
+      });
+      lines.push('    },');
     }
     if (config.references) {
       lines.push('    references: {');

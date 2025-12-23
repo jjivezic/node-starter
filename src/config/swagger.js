@@ -108,35 +108,6 @@ const options = {
             },
           },
         },
-        Category: {
-          type: 'object',
-          properties: {
-            id: {
-              type: 'integer',
-              example: 1,
-            },
-            name: {
-              type: 'string',
-              example: 'Electronics',
-            },
-            slug: {
-              type: 'string',
-              example: 'electronics',
-            },
-            description: {
-              type: 'string',
-              example: 'Electronic devices and accessories',
-            },
-            created_at: {
-              type: 'string',
-              format: 'date-time',
-            },
-            updated_at: {
-              type: 'string',
-              format: 'date-time',
-            },
-          },
-        },
       },
     },
     security: [],

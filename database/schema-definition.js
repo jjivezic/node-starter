@@ -98,7 +98,7 @@ export const schemas = {
     timestamps: true
   },
 
-  // Category model
+  // Test model
   Category: {
     tableName: 'categories',
     fields: {
@@ -130,9 +130,8 @@ export const schemas = {
     },
     timestamps: true
   },
-  // Test model
-  Test: {
-    tableName: 'tests',
+  Test1: {
+    tableName: 'test1s',
     fields: {
       id: {
         type: 'INTEGER',

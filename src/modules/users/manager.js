@@ -42,7 +42,7 @@ class UserManager {
 
     await user.update(updates);
 
-    return await this.getUserById(userId);
+    return this.getUserById(userId);
   }
 
   async deleteUser(userId) {

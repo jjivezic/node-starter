@@ -1,9 +1,9 @@
 import userManager from './manager.js';
-import { catchAsync, AppError } from '../../middleware/errorHandler.js';
+import { catchAsync } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 
 class UserController {
-  getAllUsers = catchAsync(async (req, res, next) => {
+  getAllUsers = catchAsync(async (req, res) => {
     const users = await userManager.getAllUsers();
 
     res.status(200).json({
@@ -12,7 +12,7 @@ class UserController {
     });
   });
 
-  getUserById = catchAsync(async (req, res, next) => {
+  getUserById = catchAsync(async (req, res) => {
     const { id } = req.params;
     const user = await userManager.getUserById(id);
 
@@ -22,7 +22,7 @@ class UserController {
     });
   });
 
-  getProfile = catchAsync(async (req, res, next) => {
+  getProfile = catchAsync(async (req, res) => {
     // Get current user's profile
     const user = await userManager.getUserById(req.user.id);
 
@@ -32,7 +32,7 @@ class UserController {
     });
   });
 
-  updateUser = catchAsync(async (req, res, next) => {
+  updateUser = catchAsync(async (req, res) => {
     const { id } = req.params;
     const user = await userManager.updateUser(id, req.body);
     logger.info(`User updated: ${id}`);
@@ -44,7 +44,7 @@ class UserController {
     });
   });
 
-  deleteUser = catchAsync(async (req, res, next) => {
+  deleteUser = catchAsync(async (req, res) => {
     const { id } = req.params;
     await userManager.deleteUser(id);
     logger.info(`User deleted: ${id}`);

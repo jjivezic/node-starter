@@ -44,16 +44,16 @@ const Product = sequelize.define('Product', {
   updatedAt: 'updated_at',
   indexes: [
     {
-        "fields": [
-            "user_id"
-        ]
+      fields: [
+        'user_id'
+      ]
     },
     {
-        "fields": [
-            "name"
-        ]
+      fields: [
+        'name'
+      ]
     }
-]
+  ]
 });
 
 export default Product;

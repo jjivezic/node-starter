@@ -1,8 +1,8 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import db from '../../../database/models/index.js';
 import dotenv from 'dotenv';
-import { AppError, COMMON_ERRORS } from '../../middleware/errorHandler.js';
+import db from '../../../database/models/index.js';
+import { AppError } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 
 const { User } = db;
@@ -34,6 +34,7 @@ class AuthManager {
       name: user.name
     };
   }
+  
   async login(email, password) {
     // Get user by email
     const user = await User.findOne({ where: { email } });
