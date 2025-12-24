@@ -13,7 +13,6 @@ export const initializeJobs = () => {
 
   // Database Jobs
   databaseJobs.databaseBackup();
-  databaseJobs.cleanOldLogs();
 
   // System Jobs
   systemJobs.healthCheck();
