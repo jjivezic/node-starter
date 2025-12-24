@@ -12,13 +12,20 @@ import morganMiddleware from './middleware/morganMiddleware.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import swaggerSpec from './config/swagger.js';
 import { generalLimiter } from './middleware/rateLimiter.js';
+import { validateEnv } from './config/validateEnv.js';
+import { initializeJobs } from './jobs/index.js';
+import { startAllJobs } from './services/cronService.js';
 
 dotenv.config();
+
+// Validate environment variables
+validateEnv();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Security middleware
+/* eslint-disable */
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -29,6 +36,7 @@ app.use(helmet({
     }
   }
 }));
+/* eslint-enable */
 
 // CORS middleware
 const corsOptions = {
@@ -77,7 +85,7 @@ app.use(errorHandler);
 app.listen(PORT, async () => {
   logger.info(`Server is running on port ${PORT}`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  
+
   // Sync database (only in development)
   if (process.env.NODE_ENV === 'development') {
     try {
@@ -87,6 +95,13 @@ app.listen(PORT, async () => {
       logger.error(`Database sync failed: ${error.message}`);
     }
   }
+
+  // Initialize and start cron jobs
+
+  initializeJobs();
+  startAllJobs();
+  logger.info('Cron jobs started');
+
 });
 
 export default app;
