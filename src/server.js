@@ -1,6 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
+import xss from 'xss-clean';
+import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
 import routes from './routes/index.js';
 import db from '../database/models/index.js';
@@ -8,25 +11,49 @@ import logger from './config/logger.js';
 import morganMiddleware from './middleware/morganMiddleware.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import swaggerSpec from './config/swagger.js';
+import { generalLimiter } from './middleware/rateLimiter.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-  res.header('Access-Control-Allow-Headers', 'Origin, Content-Type, X-Auth-Token');
-  next();
-});
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:']
+    }
+  }
+}));
+
+// CORS middleware
+const corsOptions = {
+  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
+  credentials: true,
+  optionsSuccessStatus: 200,
+  exposedHeaders: ['X-Refresh-Token']
+};
+app.use(cors(corsOptions));
+
+// Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Data sanitization against XSS attacks
+app.use(xss());
+
+// Gzip compression
+app.use(compression());
+
 // HTTP request logger
 app.use(morganMiddleware);
+
+// Rate limiting
+app.use(generalLimiter);
 
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
