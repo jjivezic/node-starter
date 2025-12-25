@@ -541,7 +541,8 @@ router.use(authMiddleware);
  *       \`\`\`
  *       GET /api/${moduleName}s?page=1&limit=10
  *       GET /api/${moduleName}s?sortBy=${sortFields[0]}&sortOrder=asc
- *       GET /api/${moduleName}s?filter[field][like]=value&sortBy=${sortFields[0]}&page=1
+ *       GET /api/${moduleName}s?filter[field][gt]=value&sortBy=${sortFields[0]}&sortOrder=desc
+ *       GET /api/${moduleName}s?page=1&limit=10&filter[field]=value&sortBy=${sortFields[0]}&sortOrder=desc
  *       \`\`\`
  *     security:
  *       - bearerAuth: []
@@ -595,13 +596,17 @@ router.get(
  *       - Exact: \`filter[field]=value\`
  *       - Greater/Equal: \`filter[field][gte]=value\`
  *       - Less/Equal: \`filter[field][lte]=value\`
+ *       - Greater: \`filter[field][gt]=value\`
+ *       - Less: \`filter[field][lt]=value\`
  *       - Contains: \`filter[field][like]=value\`
+ *       - In list: \`filter[field][in]=1,2,3\`
  *       
  *       **Example Routes:**
  *       \`\`\`
  *       GET /api/${moduleName}s/all
  *       GET /api/${moduleName}s/all?sortBy=${sortFields[0]}&sortOrder=asc
  *       GET /api/${moduleName}s/all?filter[field]=value
+ * 
  *       \`\`\`
  *     security:
  *       - bearerAuth: []
