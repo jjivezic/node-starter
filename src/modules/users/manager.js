@@ -4,11 +4,33 @@ import { AppError, COMMON_ERRORS } from '../../middleware/errorHandler.js';
 const { User } = db;
 
 class UserManager {
-  async getAllUsers() {
+  async getAllUsers(filters = {}, sort = {}) {
+    const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
+
     const users = await User.findAll({
+      where: filters,
+      order,
       attributes: ['id', 'email', 'name', 'created_at']
     });
     return users;
+  }
+
+  async getAllUsersPaginated(filters = {}, sort = {}, pagination = {}) {
+    const { limit, offset } = pagination;
+    const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
+
+    const { count, rows } = await User.findAndCountAll({
+      where: filters,
+      order,
+      limit,
+      offset,
+      attributes: ['id', 'email', 'name', 'created_at']
+    });
+
+    return {
+      items: rows,
+      total: count
+    };
   }
 
   async getUserById(userId) {

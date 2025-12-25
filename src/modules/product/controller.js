@@ -3,8 +3,25 @@ import { catchAsync } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 
 class ProductController {
+  getAllPaginated = catchAsync(async (req, res) => {
+    const { items, total } = await productManager.getAllPaginated(
+      req.filters || {},
+      req.sort || {},
+      req.pagination || {}
+    );
+
+    res.status(200).json({
+      success: true,
+      data: items,
+      total
+    });
+  });
+
   getAll = catchAsync(async (req, res) => {
-    const items = await productManager.getAll();
+    const items = await productManager.getAll(
+      req.filters || {},
+      req.sort || {}
+    );
 
     res.status(200).json({
       success: true,

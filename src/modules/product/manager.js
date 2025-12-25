@@ -4,9 +4,32 @@ import { AppError, COMMON_ERRORS } from '../../middleware/errorHandler.js';
 const { Product } = db;
 
 class ProductManager {
-  async getAll() {
-    const items = await Product.findAll();
+  async getAll(filters = {}, sort = {}) {
+    const order = sort.field ? [[sort.field, sort.order]] : [['createdAt', 'DESC']];
+
+    const items = await Product.findAll({
+      where: filters,
+      order
+    });
+    
     return items;
+  }
+
+  async getAllPaginated(filters = {}, sort = {}, pagination = {}) {
+    const { limit, offset } = pagination;
+    const order = sort.field ? [[sort.field, sort.order]] : [['createdAt', 'DESC']];
+
+    const { count, rows } = await Product.findAndCountAll({
+      where: filters,
+      order,
+      limit,
+      offset
+    });
+
+    return {
+      items: rows,
+      total: count
+    };
   }
 
   async getById(id) {

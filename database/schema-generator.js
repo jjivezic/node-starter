@@ -192,9 +192,31 @@ import { AppError, COMMON_ERRORS } from '../../middleware/errorHandler.js';
 const { ${modelName} } = db;
 
 class ${modelName}Manager {
-  async getAll() {
-    const items = await ${modelName}.findAll();
+  async getAll(filters = {}, sort = {}) {
+    const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
+
+    const items = await ${modelName}.findAll({
+      where: filters,
+      order
+    });
     return items;
+  }
+
+  async getAllPaginated(filters = {}, sort = {}, pagination = {}) {
+    const { limit, offset } = pagination;
+    const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
+
+    const { count, rows } = await ${modelName}.findAndCountAll({
+      where: filters,
+      order,
+      limit,
+      offset
+    });
+
+    return {
+      items: rows,
+      total: count
+    };
   }
 
   async getById(id) {
@@ -244,8 +266,25 @@ import { catchAsync } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 
 class ${modelName}Controller {
+  getAllPaginated = catchAsync(async (req, res) => {
+    const { items, total } = await ${moduleName}Manager.getAllPaginated(
+      req.filters || {},
+      req.sort || {},
+      req.pagination || {}
+    );
+
+    res.status(200).json({
+      success: true,
+      data: items,
+      total
+    });
+  });
+
   getAll = catchAsync(async (req, res) => {
-    const items = await ${moduleName}Manager.getAll();
+    const items = await ${moduleName}Manager.getAll(
+      req.filters || {},
+      req.sort || {}
+    );
 
     res.status(200).json({
       success: true,
@@ -395,10 +434,80 @@ export const idParamSchema = Joi.object({
 `;
 
 // Generate Routes
+const sortFields = schema.api?.sortFields || ['created_at', 'updated_at'];
+const filterFields = schema.api?.filterFields || [];
+const sortFieldsStr = sortFields.map(f => `'${f}'`).join(', ');
+const filterFieldsStr = filterFields.map(f => `'${f}'`).join(', ');
+
+// Format fields for Swagger docs
+const sortFieldsDisplay = sortFields.map(f => '`' + f + '`').join(', ');
+const filterFieldsDisplay = filterFields.length > 0 ? filterFields.map(f => '`' + f + '`').join(', ') : 'No filters available';
+
+// Generate inline Swagger schema from fields
+function generateSwaggerSchema(fields, required = false) {
+  const properties = [];
+  const requiredFields = [];
+  
+  Object.entries(fields).forEach(([fieldName, config]) => {
+    if (fieldName === 'id') return; // Skip id field
+    
+    let swaggerType = 'string';
+    let format = null;
+    let example = null;
+    
+    if (config.type.includes('INTEGER')) {
+      swaggerType = 'integer';
+      example = 1;
+    } else if (config.type.includes('DECIMAL') || config.type.includes('FLOAT')) {
+      swaggerType = 'number';
+      example = 99.99;
+    } else if (config.type.includes('TEXT')) {
+      swaggerType = 'string';
+      example = 'Sample text';
+    } else if (config.type.includes('STRING')) {
+      swaggerType = 'string';
+      example = fieldName.includes('email') ? 'user@example.com' : 'Sample ' + fieldName;
+    } else if (config.type.includes('DATE')) {
+      swaggerType = 'string';
+      format = 'date-time';
+    } else if (config.type.includes('BOOLEAN')) {
+      swaggerType = 'boolean';
+      example = true;
+    }
+    
+    const propLines = [];
+    propLines.push(` *               ${fieldName}:`);
+    propLines.push(` *                 type: ${swaggerType}`);
+    if (format) propLines.push(` *                 format: ${format}`);
+    if (example !== null) {
+      const exampleVal = typeof example === 'string' ? example : example;
+      propLines.push(` *                 example: ${exampleVal}`);
+    }
+    
+    properties.push(propLines.join('\n'));
+    
+    if (required && config.allowNull === false && !config.defaultValue) {
+      requiredFields.push(fieldName);
+    }
+  });
+  
+  const requiredStr = requiredFields.length > 0 
+    ? `\n *             required:\n *               - ${requiredFields.join('\n *               - ')}` 
+    : '';
+  
+  return `type: object${requiredStr}
+ *             properties:
+${properties.join('\n')}`;
+}
+
+const createSchemaStr = generateSwaggerSchema(schema.fields, true);
+const updateSchemaStr = generateSwaggerSchema(schema.fields, false);
+
 const routesContent = `import express from 'express';
 import ${moduleName}Controller from './controller.js';
 import authMiddleware from '../../middleware/authMiddleware.js';
 import { validate } from '../../middleware/validate.js';
+import { paginate, sort, filter } from '../../middleware/queryHelpers.js';
 import { create${modelName}Schema, update${modelName}Schema, idParamSchema } from './validation.js';
 
 const router = express.Router();
@@ -411,14 +520,112 @@ router.use(authMiddleware);
  * /api/${moduleName}s:
  *   get:
  *     tags: [${modelName}s]
- *     summary: Get all ${moduleName}s
+ *     summary: Get all ${moduleName}s with pagination, sorting, and filtering
+ *     description: |
+ *       **Available Filter Fields:**
+ *       - ${filterFieldsDisplay}
+ *       
+ *       **Available Sort Fields:**
+ *       - ${sortFieldsDisplay}
+ *       
+ *       **Filter Operators:**
+ *       - Exact: \`filter[field]=value\`
+ *       - Greater/Equal: \`filter[field][gte]=value\`
+ *       - Less/Equal: \`filter[field][lte]=value\`
+ *       - Greater: \`filter[field][gt]=value\`
+ *       - Less: \`filter[field][lt]=value\`
+ *       - Contains: \`filter[field][like]=value\`
+ *       - In list: \`filter[field][in]=1,2,3\`
+ *       
+ *       **Example Routes:**
+ *       \`\`\`
+ *       GET /api/${moduleName}s?page=1&limit=10
+ *       GET /api/${moduleName}s?sortBy=${sortFields[0]}&sortOrder=asc
+ *       GET /api/${moduleName}s?filter[field][like]=value&sortBy=${sortFields[0]}&page=1
+ *       \`\`\`
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [${sortFieldsStr}]
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
  *     responses:
  *       200:
- *         description: List of ${moduleName}s
+ *         description: Paginated list of ${moduleName}s
  */
-router.get('/', ${moduleName}Controller.getAll);
+router.get(
+  '/',
+  paginate,
+  sort([${sortFieldsStr}]),
+  filter([${filterFieldsStr}]),
+  ${moduleName}Controller.getAllPaginated
+);
+
+/**
+ * @swagger
+ * /api/${moduleName}s/all:
+ *   get:
+ *     tags: [${modelName}s]
+ *     summary: Get all ${moduleName}s without pagination (supports sorting and filtering)
+ *     description: |
+ *       **Available Filter Fields:**
+ *       - ${filterFieldsDisplay}
+ *       
+ *       **Available Sort Fields:**
+ *       - ${sortFieldsDisplay}
+ *       
+ *       **Filter Operators:**
+ *       - Exact: \`filter[field]=value\`
+ *       - Greater/Equal: \`filter[field][gte]=value\`
+ *       - Less/Equal: \`filter[field][lte]=value\`
+ *       - Contains: \`filter[field][like]=value\`
+ *       
+ *       **Example Routes:**
+ *       \`\`\`
+ *       GET /api/${moduleName}s/all
+ *       GET /api/${moduleName}s/all?sortBy=${sortFields[0]}&sortOrder=asc
+ *       GET /api/${moduleName}s/all?filter[field]=value
+ *       \`\`\`
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [${sortFieldsStr}]
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *     responses:
+ *       200:
+ *         description: All ${moduleName}s
+ */
+router.get(
+  '/all',
+  sort([${sortFieldsStr}]),
+  filter([${filterFieldsStr}]),
+  ${moduleName}Controller.getAll
+);
 
 /**
  * @swagger
@@ -455,7 +662,7 @@ router.get('/:id', validate(idParamSchema, 'params'), ${moduleName}Controller.ge
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/${modelName}'
+ *             ${createSchemaStr}
  *     responses:
  *       201:
  *         description: ${modelName} created successfully
@@ -483,7 +690,7 @@ router.post('/', validate(create${modelName}Schema), ${moduleName}Controller.cre
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/${modelName}'
+ *             ${updateSchemaStr}
  *     responses:
  *       200:
  *         description: ${modelName} updated successfully

@@ -42,7 +42,12 @@ export const schemas = {
     indexes: [
       { fields: ['email'], unique: true }
     ],
-    timestamps: true
+    timestamps: true,
+    // API configuration
+    api: {
+      sortFields: ['name', 'email', 'created_at', 'updated_at'],
+      filterFields: ['name', 'email']
+    }
   },
 
   // Product model
@@ -95,7 +100,12 @@ export const schemas = {
       { fields: ['user_id'] },
       { fields: ['name'] }
     ],
-    timestamps: true
+    timestamps: true,
+    // API configuration
+    api: {
+      sortFields: ['name', 'price', 'created_at', 'updated_at'],
+      filterFields: ['name', 'price', 'description', 'user_id', 'stock']
+    }
   },
 
   // Test model
@@ -142,7 +152,12 @@ export const schemas = {
       { fields: ['user_id'] },
       { fields: ['name'] }
     ],
-    timestamps: true
+    timestamps: true,
+    // API configuration
+    api: {
+      sortFields: ['name', 'slug', 'created_at', 'updated_at'],
+      filterFields: ['name', 'slug', 'user_id', 'stock']
+    }
   },
   Test1: {
     tableName: 'test1s',

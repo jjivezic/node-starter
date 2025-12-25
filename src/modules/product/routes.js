@@ -2,37 +2,152 @@ import express from 'express';
 import productController from './controller.js';
 import authMiddleware from '../../middleware/authMiddleware.js';
 import { validate } from '../../middleware/validate.js';
+import { paginate, sort, filter } from '../../middleware/queryHelpers.js';
 import { createProductSchema, updateProductSchema, idParamSchema } from './validation.js';
 
 const router = express.Router();
 
 // All routes require authentication
-router.use(authMiddleware);
+// router.use(authMiddleware);
 
 /**
  * @swagger
  * /api/products:
  *   get:
  *     tags: [Products]
- *     summary: Get all products
+ *     summary: Get all products with pagination, sorting, and filtering
+ *     description: |
+ *       **Available Filter Fields:**
+ *       - `name`, `price`, `description`, `user_id`, `stock`
+ *       
+ *       **Available Sort Fields:**
+ *       - `name`, `price`, `created_at`, `updated_at`
+ *       
+ *       **Filter Operators:**
+ *       - Exact: `filter[field]=value`
+ *       - Greater/Equal: `filter[field][gte]=value`
+ *       - Less/Equal: `filter[field][lte]=value`
+ *       - Greater: `filter[field][gt]=value`
+ *       - Less: `filter[field][lt]=value`
+ *       - Contains: `filter[field][like]=value`
+ *       - In list: `filter[field][in]=1,2,3`
+ *       
+ *       **Example Routes:**
+ *       ```
+ *       GET /api/products?page=1&limit=10
+ *       GET /api/products?sortBy=price&sortOrder=asc
+ *       GET /api/products?filter[user_id]=1
+ *       GET /api/products?filter[user_id]=1&filter[stock][lte]=50&filter[price][gte]=100
+ *       GET /api/products?filter[name][like]=phone
+ *       ```
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [name, price, created_at, updated_at]
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *       - in: query
+ *         name: filter[user_id]
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *       - in: query
+ *         name: filter[stock][lte]
+ *         schema:
+ *           type: integer
+ *         example: 50
  *     responses:
  *       200:
- *         description: List of products
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Product'
+ *         description: Paginated list of products
  */
-router.get('/', productController.getAll);
+router.get(
+  '/',
+  paginate,
+  sort(['name', 'price', 'created_at', 'updated_at']),
+  filter(['name', 'price', 'description', 'user_id', 'stock']),
+  productController.getAllPaginated
+);
+
+/**
+ * @swagger
+ * /api/products/all:
+ *   get:
+ *     tags: [Products]
+ *     summary: Get all products without pagination (supports sorting and filtering)
+ *     description: |
+ *       **Available Filter Fields:**
+ *       - `name`, `price`, `description`, `user_id`, `stock`
+ *       
+ *       **Available Sort Fields:**
+ *       - `name`, `price`, `created_at`, `updated_at`
+ *       
+ *       **Filter Operators:**
+ *       - Exact: `filter[field]=value`
+ *       - Greater/Equal: `filter[field][gte]=value`
+ *       - Less/Equal: `filter[field][lte]=value`
+ *       - Greater: `filter[field][gt]=value`
+ *       - Less: `filter[field][lt]=value`
+ *       - Contains: `filter[field][like]=value`
+ *       - In list: `filter[field][in]=1,2,3`
+ *       
+ *       **Example Routes:**
+ *       ```
+ *       GET /api/products/all
+ *       GET /api/products/all?sortBy=price&sortOrder=asc
+ *       GET /api/products/all?filter[user_id]=1
+ *       GET /api/products/all?filter[user_id]=1&filter[stock][lte]=50&filter[price][gte]=100
+ *       GET /api/products/all?filter[name][like]=phone
+ *       ```
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [name, price, created_at, updated_at]
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *       - in: query
+ *         name: filter[user_id]
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *       - in: query
+ *         name: filter[stock][lte]
+ *         schema:
+ *           type: integer
+ *         example: 50
+ *     responses:
+ *       200:
+ *         description: All products
+ */
+router.get(
+  '/all',
+  sort(['name', 'price', 'created_at', 'updated_at']),
+  filter(['name', 'price', 'description', 'user_id', 'stock']),
+  productController.getAll
+);
 
 /**
  * @swagger

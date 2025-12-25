@@ -3,8 +3,25 @@ import { catchAsync } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 
 class UserController {
+  getAllUsersPaginated = catchAsync(async (req, res) => {
+    const { items, total } = await userManager.getAllUsersPaginated(
+      req.filters || {},
+      req.sort || {},
+      req.pagination || {}
+    );
+
+    res.status(200).json({
+      success: true,
+      data: items,
+      total
+    });
+  });
+
   getAllUsers = catchAsync(async (req, res) => {
-    const users = await userManager.getAllUsers();
+    const users = await userManager.getAllUsers(
+      req.filters || {},
+      req.sort || {}
+    );
 
     res.status(200).json({
       success: true,
