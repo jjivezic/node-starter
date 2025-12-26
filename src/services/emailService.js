@@ -1,6 +1,12 @@
 import nodemailer from 'nodemailer';
 import { google } from 'googleapis';
 import logger from '../config/logger.js';
+import { 
+  baseEmailTemplate, 
+  welcomeEmailBody, 
+  passwordResetBody, 
+  verificationEmailBody 
+} from '../templates/emailTemplate.js';
 
 const OAuth2 = google.auth.OAuth2;
 
@@ -89,11 +95,10 @@ class EmailService {
 
   async sendWelcomeEmail(user) {
     const subject = 'Welcome to Our Platform';
-    const html = `
-      <h1>Welcome, ${user.name}!</h1>
-      <p>Thank you for joining us.</p>
-      <p>Your account has been successfully created.</p>
-    `;
+    const html = baseEmailTemplate({
+      title: 'Welcome!',
+      body: welcomeEmailBody(user.name)
+    });
 
     return this.sendEmail({
       to: user.email,
@@ -105,14 +110,10 @@ class EmailService {
   async sendPasswordResetEmail(user, resetToken) {
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
     const subject = 'Password Reset Request';
-    const html = `
-      <h1>Password Reset Request</h1>
-      <p>Hi ${user.name},</p>
-      <p>You requested a password reset. Click the link below to reset your password:</p>
-      <a href="${resetUrl}">Reset Password</a>
-      <p>This link will expire in 1 hour.</p>
-      <p>If you didn't request this, please ignore this email.</p>
-    `;
+    const html = baseEmailTemplate({
+      title: 'Reset Your Password',
+      body: passwordResetBody(user.name, resetUrl)
+    });
 
     return this.sendEmail({
       to: user.email,
@@ -124,13 +125,10 @@ class EmailService {
   async sendVerificationEmail(user, verificationToken) {
     const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
     const subject = 'Email Verification';
-    const html = `
-      <h1>Verify Your Email</h1>
-      <p>Hi ${user.name},</p>
-      <p>Please verify your email address by clicking the link below:</p>
-      <a href="${verifyUrl}">Verify Email</a>
-      <p>This link will expire in 24 hours.</p>
-    `;
+    const html = baseEmailTemplate({
+      title: 'Verify Your Email',
+      body: verificationEmailBody(user.name, verifyUrl)
+    });
 
     return this.sendEmail({
       to: user.email,
