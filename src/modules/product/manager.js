@@ -5,7 +5,7 @@ const { Product } = db;
 
 class ProductManager {
   async getAll(filters = {}, sort = {}) {
-    const order = sort.field ? [[sort.field, sort.order]] : [['createdAt', 'DESC']];
+    const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
 
     const items = await Product.findAll({
       where: filters,
@@ -17,7 +17,7 @@ class ProductManager {
 
   async getAllPaginated(filters = {}, sort = {}, pagination = {}) {
     const { limit, offset } = pagination;
-    const order = sort.field ? [[sort.field, sort.order]] : [['createdAt', 'DESC']];
+    const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
 
     const { count, rows } = await Product.findAndCountAll({
       where: filters,
