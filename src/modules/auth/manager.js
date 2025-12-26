@@ -4,12 +4,15 @@ import dotenv from 'dotenv';
 import db from '../../../database/models/index.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
+import emailService from '../../services/emailService.js';
 
 const { User } = db;
 dotenv.config();
 
 class AuthManager {
   async register(email, password, name) {
+    logger.info(`Registration attempt - email: ${email}, name: ${name}`);
+    
     // Check if user already exists
     const existingUser = await User.findOne({ where: { email } });
 
@@ -28,6 +31,13 @@ class AuthManager {
       name
     });
 
+    // Send welcome email (non-blocking)
+    emailService.sendWelcomeEmail(user).catch(err => {
+      logger.error(`Failed to send welcome email to ${user.email}: ${err.message}`);
+    });
+
+    logger.info(`Registration successful - user ID: ${user.id}, email: ${user.email}`);
+
     return {
       id: user.id,
       email: user.email,
@@ -36,6 +46,8 @@ class AuthManager {
   }
   
   async login(email, password) {
+    logger.info(`Login attempt - email: ${email}`);
+    
     // Get user by email
     const user = await User.findOne({ where: { email } });
 
@@ -75,6 +87,8 @@ class AuthManager {
 
     // Save refresh token to database
     await user.update({ refresh_token: refreshToken });
+
+    logger.info(`Login successful - user ID: ${user.id}, email: ${user.email}`);
 
     return {
       accessToken,

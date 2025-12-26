@@ -15,6 +15,7 @@ import { generalLimiter } from './middleware/rateLimiter.js';
 import { validateEnv } from './config/validateEnv.js';
 import { initializeJobs } from './jobs/index.js';
 import { startAllJobs } from './services/cronService.js';
+import { requestIdMiddleware } from './middleware/requestId.js';
 
 dotenv.config();
 
@@ -23,6 +24,9 @@ validateEnv();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Request ID middleware (first, so all logs have it)
+app.use(requestIdMiddleware);
 
 // Security middleware
 /* eslint-disable */

@@ -96,13 +96,20 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // Log error with stack trace (server-side only)
+  const log = logger.withRequestId(req.id);
+  
   if (err.statusCode === 500) {
-    logger.error(`${err.message}\n${err.stack}`);
+    log.error(`${err.message}\n${err.stack}`);
+    log.error(`Request body: ${JSON.stringify(req.body)}`);
   } else {
-    logger.warn(`${err.statusCode} - ${err.message} - ${req.originalUrl} - ${req.method} - ${req.ip}`);
+    log.warn(`${err.statusCode} - ${err.message} - ${req.originalUrl} - ${req.method} - ${req.ip}`);
+    // Log request body for debugging
+    if (req.body && Object.keys(req.body).length > 0) {
+      log.error(`Request body: ${JSON.stringify(req.body)}`);
+    }
     // Log stack trace for all errors on server side
     if (err.stack) {
-      logger.error(`Stack trace:\n${err.stack}`);
+      log.error(`Stack trace:\n${err.stack}`);
     }
   }
 

@@ -31,7 +31,10 @@ const format = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.colorize({ all: true }),
   winston.format.printf(
-    (info) => `${info.timestamp} ${info.level}: ${info.message}`
+    (info) => {
+      const reqId = info.requestId ? `[${info.requestId}] ` : '';
+      return `${info.timestamp} ${info.level}: ${reqId}${info.message}`;
+    }
   )
 );
 
@@ -73,5 +76,16 @@ const logger = winston.createLogger({
   format,
   transports,
 });
+
+// Helper to add request ID to logs
+logger.withRequestId = (requestId) => {
+  return {
+    error: (message) => logger.error(message, { requestId }),
+    warn: (message) => logger.warn(message, { requestId }),
+    info: (message) => logger.info(message, { requestId }),
+    http: (message) => logger.http(message, { requestId }),
+    debug: (message) => logger.debug(message, { requestId })
+  };
+};
 
 export default logger;
