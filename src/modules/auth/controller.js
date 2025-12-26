@@ -6,7 +6,7 @@ class AuthController {
   register = catchAsync(async (req, res) => {
     const { email, password, name } = req.body;
     const user = await authManager.register(email, password, name);
-    logger.info(`New user registered: ${email} from ${req.ip}`);
+    logger.info(`New user registered: ${email}`);
 
     res.status(201).json({
       success: true,
@@ -17,9 +17,9 @@ class AuthController {
 
   login = catchAsync(async (req, res) => {
     const { email, password } = req.body;
-    console.log('ip address**************', req.ip);
+
     const result = await authManager.login(email, password);
-    logger.info(`User logged in: ${email} from ${req.ip}`);
+    logger.info(`User logged in: ${email}`);
 
     res.status(200).json({
       success: true,

@@ -102,7 +102,7 @@ const errorHandler = (err, req, res, next) => {
     log.error(`${err.message}\n${err.stack}`);
     log.error(`Request body: ${JSON.stringify(req.body)}`);
   } else {
-    log.warn(`${err.statusCode} - ${err.message} - ${req.originalUrl} - ${req.method} - ${req.ip}`);
+    log.warn(`${err.statusCode} - ${err.message} - ${req.originalUrl} - ${req.method}`);
     // Log request body for debugging
     if (req.body && Object.keys(req.body).length > 0) {
       log.error(`Request body: ${JSON.stringify(req.body)}`);

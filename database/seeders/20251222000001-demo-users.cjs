@@ -3,7 +3,8 @@ const bcrypt = require('bcrypt');
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    const hashedPassword = await bcrypt.hash('admin123', 10);
+    // Use 12 rounds minimum for better security
+    const hashedPassword = await bcrypt.hash('admin123', 12);
     
     await queryInterface.bulkInsert('users', [
       {

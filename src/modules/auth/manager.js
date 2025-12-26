@@ -5,6 +5,7 @@ import db from '../../../database/models/index.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 import emailService from '../../services/emailService.js';
+import crypto from 'crypto';
 
 const { User } = db;
 dotenv.config();
@@ -21,8 +22,8 @@ class AuthManager {
       throw new AppError('User already exists', 409);
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash password with 12 rounds (per coding standards)
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create user
     const user = await User.create({
@@ -48,7 +49,6 @@ class AuthManager {
   async login(email, password) {
     logger.info(`Login attempt - email: ${email}`);
     
-    // Get user by email
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
@@ -56,15 +56,41 @@ class AuthManager {
       throw new AppError('Invalid credentials', 401);
     }
 
-    // Verify password
+    // Check if account is locked
+    if (user.account_locked_until && new Date() < new Date(user.account_locked_until)) {
+      const lockTimeRemaining = Math.ceil((new Date(user.account_locked_until) - new Date()) / 1000 / 60);
+      logger.warn(`Login failed: Account locked - ${email}`);
+      throw new AppError(`Account is locked. Try again in ${lockTimeRemaining} minutes`, 423);
+    }
+
     const isValidPassword = await bcrypt.compare(password, user.password);
 
     if (!isValidPassword) {
-      logger.warn(`Login failed: Invalid password - ${email}`);
+      // Increment failed attempts
+      const failedAttempts = (user.failed_login_attempts || 0) + 1;
+      
+      if (failedAttempts >= 5) {
+        // Lock account for 15 minutes after 5 failed attempts
+        const lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+        await user.update({ 
+          failed_login_attempts: failedAttempts,
+          account_locked_until: lockUntil
+        });
+        logger.warn(`Account locked due to failed attempts - ${email}`);
+        throw new AppError('Account locked due to too many failed attempts. Try again in 15 minutes', 423);
+      }
+      
+      await user.update({ failed_login_attempts: failedAttempts });
+      logger.warn(`Login failed: Invalid password - ${email} (attempt ${failedAttempts}/5)`);
       throw new AppError('Invalid credentials', 401);
     }
 
-    // Generate access token (short-lived: 15 minutes)
+    // Reset failed attempts on successful login
+    await user.update({ 
+      failed_login_attempts: 0,
+      account_locked_until: null
+    });
+
     const accessToken = jwt.sign(
       { 
         id: user.id, 
@@ -74,7 +100,6 @@ class AuthManager {
       { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
     );
 
-    // Generate refresh token (long-lived: 7 days)
     const refreshToken = jwt.sign(
       { 
         id: user.id, 
@@ -85,8 +110,13 @@ class AuthManager {
       { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
     );
 
-    // Save refresh token to database
-    await user.update({ refresh_token: refreshToken });
+    // Hash refresh token before storing (security best practice)
+    const hashedRefreshToken = crypto
+      .createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
+
+    await user.update({ refresh_token: hashedRefreshToken });
 
     logger.info(`Login successful - user ID: ${user.id}, email: ${user.email}`);
 
@@ -103,25 +133,27 @@ class AuthManager {
 
   async refreshAccessToken(refreshToken) {
     try {
-      // Verify refresh token
       const decoded = jwt.verify(
         refreshToken, 
         process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET
       );
 
-      // Check if it's a refresh token
       if (decoded.type !== 'refresh') {
         throw new AppError('Invalid token type', 401);
       }
 
-      // Find user and verify refresh token matches
       const user = await User.findByPk(decoded.id);
       
-      if (!user || user.refresh_token !== refreshToken) {
+      // Hash the provided token and compare with stored hash
+      const hashedToken = crypto
+        .createHash('sha256')
+        .update(refreshToken)
+        .digest('hex');
+      
+      if (!user || user.refresh_token !== hashedToken) {
         throw new AppError('Invalid refresh token', 401);
       }
 
-      // Generate new access token
       const newAccessToken = jwt.sign(
         { 
           id: user.id, 
