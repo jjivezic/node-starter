@@ -16,6 +16,7 @@ import { validateEnv } from './config/validateEnv.js';
 import { initializeJobs } from './jobs/index.js';
 import { startAllJobs } from './services/cronService.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
+import { metricsMiddleware } from './middleware/metricsMiddleware.js';
 
 dotenv.config();
 
@@ -27,6 +28,9 @@ const PORT = process.env.PORT || 3000;
 
 // Request ID middleware (first, so all logs have it)
 app.use(requestIdMiddleware);
+
+// Performance metrics middleware (track all requests)
+app.use(metricsMiddleware);
 
 // Security middleware
 /* eslint-disable */

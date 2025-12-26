@@ -1,5 +1,6 @@
 import express from 'express';
 import healthController from './controller.js';
+import authMiddleware from '../../middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -109,5 +110,98 @@ router.get('/', healthController.checkHealth);
  *         description: One or more services are degraded
  */
 router.get('/detailed', healthController.checkDetailedHealth);
+
+/**
+ * @swagger
+ * /api/health/metrics:
+ *   get:
+ *     summary: Get performance metrics
+ *     description: Returns detailed performance metrics including request stats, response times, errors, and system resources
+ *     tags: [Health]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Performance metrics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     uptime:
+ *                       type: object
+ *                       properties:
+ *                         milliseconds:
+ *                           type: number
+ *                         seconds:
+ *                           type: number
+ *                         formatted:
+ *                           type: string
+ *                           example: "2d 5h 30m"
+ *                     requests:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: number
+ *                         byMethod:
+ *                           type: object
+ *                         byStatusCode:
+ *                           type: object
+ *                     performance:
+ *                       type: object
+ *                       properties:
+ *                         avgResponseTime:
+ *                           type: string
+ *                           example: "125ms"
+ *                         minResponseTime:
+ *                           type: string
+ *                         maxResponseTime:
+ *                           type: string
+ *                     errors:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: number
+ *                         last5Minutes:
+ *                           type: number
+ *                         last60Minutes:
+ *                           type: number
+ *                         byStatusCode:
+ *                           type: object
+ *                         topErrorEndpoints:
+ *                           type: array
+ *                     topEndpoints:
+ *                       type: array
+ *                     memory:
+ *                       type: object
+ *                     system:
+ *                       type: object
+ *       401:
+ *         description: Unauthorized - Authentication required
+ */
+router.get('/metrics', authMiddleware, healthController.getMetrics);
+
+/**
+ * @swagger
+ * /api/health/metrics/reset:
+ *   post:
+ *     summary: Reset performance metrics
+ *     description: Clears all collected metrics (admin only)
+ *     tags: [Health]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Metrics reset successfully
+ *       401:
+ *         description: Unauthorized - Authentication required
+ */
+router.post('/metrics/reset', authMiddleware, healthController.resetMetrics);
 
 export default router;

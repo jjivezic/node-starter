@@ -1,5 +1,6 @@
 import { catchAsync } from '../../middleware/errorHandler.js';
 import emailService from '../../services/emailService.js';
+import metricsService from '../../services/metricsService.js';
 import db from '../../../database/models/index.js';
 import logger from '../../config/logger.js';
 
@@ -60,6 +61,29 @@ class HealthController {
     res.status(statusCode).json({
       success: isHealthy,
       data: health
+    });
+  });
+
+  // GET /api/health/metrics - Performance metrics
+  getMetrics = catchAsync(async (req, res) => {
+    const metrics = metricsService.getMetrics();
+
+    res.status(200).json({
+      success: true,
+      data: metrics
+    });
+  });
+
+  // POST /api/health/metrics/reset - Reset metrics (admin only)
+  resetMetrics = catchAsync(async (req, res) => {
+    const log = logger.withRequestId(req.id);
+    
+    metricsService.reset();
+    log.info('Metrics reset by admin');
+
+    res.status(200).json({
+      success: true,
+      message: 'Metrics reset successfully'
     });
   });
 }
