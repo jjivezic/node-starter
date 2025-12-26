@@ -87,6 +87,7 @@ app.listen(PORT, async () => {
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
 
   // Sync database (only in development)
+  // In Production, use manual migrations instead: npm run db:migrate
   if (process.env.NODE_ENV === 'development') {
     try {
       await db.sequelize.sync({ alter: false });

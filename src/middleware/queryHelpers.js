@@ -27,19 +27,19 @@ export const paginate = (req, res, next) => {
  * Adds sorting parameters to req.sort
  * 
  * Query params:
- * - sortBy: Field to sort by (default: 'createdAt')
+ * - sortBy: Field to sort by (default: 'created_at')
  * - sortOrder: 'asc' or 'desc' (default: 'desc')
  */
-export const sort = (allowedFields = ['createdAt'], fieldMapping = {}) => {
+export const sort = (allowedFields = ['created_at'], fieldMapping = {}) => {
   return (req, res, next) => {
-    let sortBy = req.query.sortBy || 'createdAt';
+    let sortBy = req.query.sortBy || 'created_at';
     const sortOrder = (req.query.sortOrder || 'desc').toLowerCase();
 
     // Map camelCase to snake_case if mapping provided
     if (fieldMapping[sortBy]) {
       sortBy = fieldMapping[sortBy];
     }
-
+console.log('Allowed sort fields:', allowedFields);
     // Validate sortBy field
     if (!allowedFields.includes(sortBy)) {
       return res.status(400).json({
