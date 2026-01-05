@@ -70,6 +70,9 @@ app.use(generalLimiter);
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+// Serve static files (admin panel)
+app.use('/admin', express.static('public'));
+
 // API routes
 app.use('/api', routes);
 

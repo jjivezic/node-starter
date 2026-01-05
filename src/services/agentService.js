@@ -1,0 +1,251 @@
+import geminiService from './geminiService.js';
+import vectorService from './vectorService.js';
+import emailService from './emailService.js';
+import logger from '../config/logger.js';
+
+/**
+ * AI Agent Service
+ * Autonomous agent that can use tools to complete tasks
+ */
+class AgentService {
+  constructor() {
+    this.tools = this.defineTools();
+  }
+
+  /**
+   * Define available tools for the agent
+   */
+  defineTools() {
+    return [
+      {
+        name: 'searchDocuments',
+        description: 'Search for documents in the knowledge base. Use keyword parameter for exact text matching, and query for semantic search.',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'The semantic search query - describe what you are looking for'
+            },
+            keyword: {
+              type: 'string',
+              description: 'Exact text to find in documents (case-insensitive). Use this when user asks for specific text like "xyz" or "contract expired"'
+            },
+            nResults: {
+              type: 'number',
+              description: 'Number of results to return (default: 10)'
+            }
+          },
+          required: ['query']
+        },
+        function: async (params) => {
+          logger.info('Agent calling searchDocuments11111111111:', params);
+          const results = await vectorService.search(
+            params.query,
+            params.nResults || 10,
+            params.keyword || null,
+            null // No distance filter, let all results through
+          );
+          logger.info(`Found ${results.length} documents`);
+          return {
+            success: true,
+            count: results.length,
+            results: results.map(r => ({
+              fileName: r.metadata.name,
+              folderPath: r.metadata.folderPath || 'root',
+              fullText: r.text,
+              distance: r.distance.toFixed(3),
+              path: r.path,
+              googleLink: r.googleLink // Direct link to Google Drive/Docs
+            }))
+          };
+        }
+      },
+      {
+        name: 'sendEmail',
+        description: 'Send an email to a recipient. Use this when user asks to send information via email.',
+        parameters: {
+          type: 'object',
+          properties: {
+            to: {
+              type: 'string',
+              description: 'Recipient email address'
+            },
+            subject: {
+              type: 'string',
+              description: 'Email subject line'
+            },
+            message: {
+              type: 'string',
+              description: 'Email message body (plain text or HTML)'
+            }
+          },
+          required: ['to', 'subject', 'message']
+        },
+        function: async (params) => {
+          logger.info('Agent calling sendEmail:', { to: params.to, subject: params.subject });
+          await emailService.sendEmail({
+            to: params.to,
+            subject: params.subject,
+            html: params.message
+          });
+          return {
+            success: true,
+            message: `Email sent to ${params.to}`
+          };
+        }
+      },
+      {
+        name: 'getDocumentStats',
+        description: 'Get statistics about the document knowledge base',
+        parameters: {
+          type: 'object',
+          properties: {}
+        },
+        function: async () => {
+          logger.info('Agent calling getDocumentStats');
+          const stats = await vectorService.getStats();
+          return {
+            success: true,
+            stats
+          };
+        }
+      }
+    ];
+  }
+
+  /**
+   * Execute agent task with autonomous tool usage
+   * @param {string} userPrompt - User's request
+   * @param {number} maxIterations - Maximum tool calls to prevent infinite loops
+   */
+  async executeTask(userPrompt, maxIterations = 5) {
+    logger.info('Agent starting task1111111:', userPrompt,this.tools);
+
+    const conversationHistory = [
+      {
+        role: 'system',
+        content: `You are an intelligent AI agent with access to tools. 
+
+IMPORTANT: You MUST use the searchDocuments tool to answer questions about documents.
+
+Your job is to:
+1. When user asks about documents or content, ALWAYS call searchDocuments tool first
+2. Search the knowledge base (Google Drive files) using searchDocuments
+3. Use the results to provide accurate answers
+4. Cite which document you found information in
+
+Available tools:
+- searchDocuments: Search for documents. Use BOTH parameters:
+  * query: Describe what you're looking for (e.g., "documents about contracts")
+  * keyword: Exact text to find (e.g., "xyz", "jelena", "contract expired")
+- sendEmail: Send emails when requested
+- getDocumentStats: Get database statistics
+
+IMPORTANT EXAMPLES:
+User: "Find document with xyz text"
+You should call: searchDocuments(query: "document with xyz", keyword: "xyz")
+
+User: "Where is text 'jelena' mentioned?"
+You should call: searchDocuments(query: "jelena", keyword: "jelena")
+
+User: "Find contract that expired"
+You should call: searchDocuments(query: "expired contract", keyword: "expired")
+
+ALWAYS use BOTH query and keyword parameters when user asks for specific text!`
+      },
+      {
+        role: 'user',
+        content: userPrompt
+      }
+    ];
+
+    const toolCalls = [];
+    let iterations = 0;
+
+    while (iterations < maxIterations) {
+      iterations++;
+      logger.info(`Agent iteration ${iterations}/${maxIterations}`);
+
+      // After first tool call, allow Gemini to respond without forcing tools
+      const useTools = toolCalls.length === 0; // Only force tools on first iteration
+
+      // Ask Gemini what to do next
+      const response = await geminiService.chatWithHistory(conversationHistory, {
+        temperature: 0.7,
+        maxTokens: 1000,
+        tools: useTools ? this.tools.map(t => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters
+        })) : null // Don't send tools after first call, let it respond
+      });
+
+      console.log('🤖 Gemini response:', JSON.stringify(response, null, 2));
+
+      // Check if agent wants to use a tool
+      if (response.toolCalls && response.toolCalls.length > 0) {
+        console.log(`✅ Agent requested ${response.toolCalls.length} tool calls:`, response.toolCalls.map(tc => tc.name));
+        
+        // Execute tool calls
+        for (const toolCall of response.toolCalls) {
+          const tool = this.tools.find(t => t.name === toolCall.name);
+          
+          if (!tool) {
+            logger.warn('Unknown tool requested:', toolCall.name);
+            continue;
+          }
+
+          logger.info('Executing tool:', toolCall.name, JSON.stringify(toolCall.parameters));
+          
+          try {
+            const result = await tool.function(toolCall.parameters);
+            
+            toolCalls.push({
+              tool: toolCall.name,
+              parameters: toolCall.parameters,
+              result
+            });
+
+            logger.info(`Tool ${toolCall.name} result:`, JSON.stringify(result).substring(0, 200));
+
+            // Add tool result to conversation
+            conversationHistory.push({
+              role: 'function',
+              name: toolCall.name,
+              content: JSON.stringify(result)
+            });
+          } catch (error) {
+            logger.error(`Tool ${toolCall.name} failed:`, error);
+            conversationHistory.push({
+              role: 'function',
+              name: toolCall.name,
+              content: JSON.stringify({ error: error.message })
+            });
+          }
+        }
+      } else {
+        // Agent has final answer
+        logger.info('✅ Agent completed task (no more tools needed)');
+        console.log('📝 Final answer:', response.text);
+        return {
+          success: true,
+          answer: response.text,
+          toolCalls,
+          iterations
+        };
+      }
+    }
+
+    // Max iterations reached
+    logger.warn('Agent reached max iterations');
+    return {
+      success: false,
+      answer: 'Task too complex, reached maximum tool usage limit',
+      toolCalls,
+      iterations
+    };
+  }
+}
+
+export default new AgentService();
