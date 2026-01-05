@@ -8,7 +8,7 @@ import {
   verificationEmailBody 
 } from '../templates/emailTemplate.js';
 
-const OAuth2 = google.auth.OAuth2;
+const { OAuth2 } = google.auth;
 
 class EmailService {
   constructor() {

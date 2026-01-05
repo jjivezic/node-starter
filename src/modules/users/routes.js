@@ -1,5 +1,5 @@
 import express from 'express';
-import userController from './controller.js';
+import { getAllUsersPaginated, getAllUsers, getUserById, getProfile, updateUser, deleteUser } from './controller.js';
 import authMiddleware from '../../middleware/authMiddleware.js';
 import { validate } from '../../middleware/validate.js';
 import { paginate, sort, filter } from '../../middleware/queryHelpers.js';
@@ -81,7 +81,7 @@ router.get(
   paginate,
   sort(['name', 'email', 'created_at', 'updated_at']),
   filter(['name', 'email']),
-  userController.getAllUsersPaginated
+  getAllUsersPaginated
 );
 
 /**
@@ -144,7 +144,7 @@ router.get(
   '/all',
   sort(['name', 'email', 'created_at', 'updated_at']),
   filter(['name', 'email']),
-  userController.getAllUsers
+  getAllUsers
 );
 
 /**
@@ -159,7 +159,7 @@ router.get(
  *       200:
  *         description: User profile
  */
-router.get('/profile', userController.getProfile);
+router.get('/profile', getProfile);
 
 /**
  * @swagger
@@ -181,7 +181,7 @@ router.get('/profile', userController.getProfile);
  *       404:
  *         description: User not found
  */
-router.get('/:id', validate(idParamSchema, 'params'), userController.getUserById);
+router.get('/:id', validate(idParamSchema, 'params'), getUserById);
 
 /**
  * @swagger
@@ -217,7 +217,7 @@ router.get('/:id', validate(idParamSchema, 'params'), userController.getUserById
  *       404:
  *         description: User not found
  */
-router.put('/:id', validate(idParamSchema, 'params'), validate(updateUserSchema), userController.updateUser);
+router.put('/:id', validate(idParamSchema, 'params'), validate(updateUserSchema), updateUser);
 
 /**
  * @swagger
@@ -239,6 +239,6 @@ router.put('/:id', validate(idParamSchema, 'params'), validate(updateUserSchema)
  *       404:
  *         description: User not found
  */
-router.delete('/:id', validate(idParamSchema, 'params'), userController.deleteUser);
+router.delete('/:id', validate(idParamSchema, 'params'), deleteUser);
 
 export default router;

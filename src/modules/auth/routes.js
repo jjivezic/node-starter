@@ -1,5 +1,5 @@
 import express from 'express';
-import authController from './controller.js';
+import { register, login, verifyToken, refresh, logout } from './controller.js';
 import authMiddleware from '../../middleware/authMiddleware.js';
 import { validate } from '../../middleware/validate.js';
 import { registerSchema, loginSchema, refreshTokenSchema } from './validation.js';
@@ -40,7 +40,7 @@ const router = express.Router();
  *       400:
  *         description: Validation error
  */
-router.post('/register', authLimiter, validate(registerSchema), authController.register);
+router.post('/register', authLimiter, validate(registerSchema), register);
 
 /**
  * @swagger
@@ -82,7 +82,7 @@ router.post('/register', authLimiter, validate(registerSchema), authController.r
  *       401:
  *         description: Invalid credentials
  */
-router.post('/login', authLimiter, validate(loginSchema), authController.login);
+router.post('/login', authLimiter, validate(loginSchema), login);
 
 /**
  * @swagger
@@ -98,7 +98,7 @@ router.post('/login', authLimiter, validate(loginSchema), authController.login);
  *       401:
  *         description: Invalid or expired token
  */
-router.get('/verify', authMiddleware, authController.verifyToken);
+router.get('/verify', authMiddleware, verifyToken);
 
 /**
  * @swagger
@@ -122,7 +122,7 @@ router.get('/verify', authMiddleware, authController.verifyToken);
  *       401:
  *         description: Invalid refresh token
  */
-router.post('/refresh', validate(refreshTokenSchema), authController.refresh);
+router.post('/refresh', validate(refreshTokenSchema), refresh);
 
 /**
  * @swagger
@@ -136,6 +136,6 @@ router.post('/refresh', validate(refreshTokenSchema), authController.refresh);
  *       200:
  *         description: Logged out successfully
  */
-router.post('/logout', authMiddleware, authController.logout);
+router.post('/logout', authMiddleware, logout);
 
 export default router;
