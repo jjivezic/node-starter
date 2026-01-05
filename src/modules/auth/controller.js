@@ -1,4 +1,4 @@
-import authManager from './manager.js';
+import * as authManager from './manager.js';
 import { catchAsync, AppError } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 

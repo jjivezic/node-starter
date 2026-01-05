@@ -3,71 +3,67 @@ import { AppError, COMMON_ERRORS } from '../../middleware/errorHandler.js';
 
 const { Product } = db;
 
-class ProductManager {
-  async getAll(filters = {}, sort = {}) {
-    const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
+export const findAll = async (filters = {}, sort = {}) => {
+  const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
 
-    const items = await Product.findAll({
-      where: filters,
-      order
-    });
-    
-    return items;
+  const items = await Product.findAll({
+    where: filters,
+    order
+  });
+  
+  return items;
+};
+
+export const findAndCountAll = async (filters = {}, sort = {}, pagination = {}) => {
+  const { limit, offset } = pagination;
+  const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
+
+  const { count, rows } = await Product.findAndCountAll({
+    where: filters,
+    order,
+    limit,
+    offset
+  });
+
+  return {
+    items: rows,
+    total: count
+  };
+};
+
+export const findByPk = async (id) => {
+  const item = await Product.findByPk(id);
+
+  if (!item) {
+    throw new AppError(COMMON_ERRORS.NOT_FOUND);
   }
 
-  async getAllPaginated(filters = {}, sort = {}, pagination = {}) {
-    const { limit, offset } = pagination;
-    const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
+  return item;
+};
 
-    const { count, rows } = await Product.findAndCountAll({
-      where: filters,
-      order,
-      limit,
-      offset
-    });
+export const createOne = async (data) => {
+  const item = await Product.create(data);
+  return item;
+};
 
-    return {
-      items: rows,
-      total: count
-    };
+export const updateOne = async (id, data) => {
+  const item = await Product.findByPk(id);
+  
+  if (!item) {
+    throw new AppError(COMMON_ERRORS.NOT_FOUND);
   }
 
-  async getById(id) {
-    const item = await Product.findByPk(id);
+  await item.update(data);
+  return getById(id);
+};
 
-    if (!item) {
-      throw new AppError(COMMON_ERRORS.NOT_FOUND);
-    }
+export const deleteOne = async (id) => {
+  const item = await Product.findByPk(id);
 
-    return item;
+  if (!item) {
+    throw new AppError(COMMON_ERRORS.NOT_FOUND);
   }
 
-  async create(data) {
-    const item = await Product.create(data);
-    return item;
-  }
-
-  async update(id, data) {
-    const item = await Product.findByPk(id);
-    
-    if (!item) {
-      throw new AppError(COMMON_ERRORS.NOT_FOUND);
-    }
-
-    await item.update(data);
-    return this.getById(id);
-  }
-
-  async delete(id) {
-    const item = await Product.findByPk(id);
-
-    if (!item) {
-      throw new AppError(COMMON_ERRORS.NOT_FOUND);
-    }
-
-    await item.destroy();
-    return { success: true };
-  }
-}
-
-export default new ProductManager();
+  await item.destroy();
+  return { success: true };
+};

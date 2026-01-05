@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAllUsersPaginated, getAllUsers, getUserById, getProfile, updateUser, deleteUser } from './controller.js';
+import { getAllUsersPaginated, getAllUsers, getUserById, updateUser, deleteUser } from './controller.js';
 import authMiddleware from '../../middleware/authMiddleware.js';
 import { validate } from '../../middleware/validate.js';
 import { paginate, sort, filter } from '../../middleware/queryHelpers.js';
@@ -146,20 +146,6 @@ router.get(
   filter(['name', 'email']),
   getAllUsers
 );
-
-/**
- * @swagger
- * /api/users/profile:
- *   get:
- *     tags: [Users]
- *     summary: Get current user profile
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: User profile
- */
-router.get('/profile', getProfile);
 
 /**
  * @swagger

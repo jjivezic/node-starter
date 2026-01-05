@@ -1,13 +1,9 @@
-import productManager from './manager.js';
+import { findAll, findAndCountAll, findByPk, createOne, updateOne, deleteOne } from './manager.js';
 import { catchAsync } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 
 export const getAllPaginated = catchAsync(async (req, res) => {
-  const { items, total } = await productManager.getAllPaginated(
-    req.filters || {},
-    req.sort || {},
-    req.pagination || {}
-  );
+  const { items, total } = await findAndCountAll(req.filters || {}, req.sort || {}, req.pagination || {});
 
   res.status(200).json({
     success: true,
@@ -17,10 +13,7 @@ export const getAllPaginated = catchAsync(async (req, res) => {
 });
 
 export const getAll = catchAsync(async (req, res) => {
-  const items = await productManager.getAll(
-    req.filters || {},
-    req.sort || {}
-  );
+  const items = await findAll(req.filters || {}, req.sort || {});
 
   res.status(200).json({
     success: true,
@@ -30,7 +23,7 @@ export const getAll = catchAsync(async (req, res) => {
 
 export const getById = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const item = await productManager.getById(id);
+  const item = await findByPk(id);
 
   res.status(200).json({
     success: true,
@@ -39,7 +32,7 @@ export const getById = catchAsync(async (req, res) => {
 });
 
 export const create = catchAsync(async (req, res) => {
-  const item = await productManager.create(req.body);
+  const item = await createOne(req.body);
   logger.info(`Product created: ${item.id}`);
 
   res.status(201).json({
@@ -51,7 +44,7 @@ export const create = catchAsync(async (req, res) => {
 
 export const update = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const item = await productManager.update(id, req.body);
+  const item = await updateOne(id, req.body);
   logger.info(`Product updated: ${id}`);
 
   res.status(200).json({
@@ -63,7 +56,7 @@ export const update = catchAsync(async (req, res) => {
 
 export const deleteProduct = catchAsync(async (req, res) => {
   const { id } = req.params;
-  await productManager.delete(id);
+  await deleteOne(id);
   logger.info(`Product deleted: ${id}`);
 
   res.status(200).json({

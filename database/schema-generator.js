@@ -191,82 +191,78 @@ import { AppError, COMMON_ERRORS } from '../../middleware/errorHandler.js';
 
 const { ${modelName} } = db;
 
-class ${modelName}Manager {
-  async getAll(filters = {}, sort = {}) {
-    const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
+export const findAll = async (filters = {}, sort = {}) => {
+  const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
 
-    const items = await ${modelName}.findAll({
-      where: filters,
-      order
-    });
-    return items;
+  const items = await ${modelName}.findAll({
+    where: filters,
+    order
+  });
+  return items;
+};
+
+export const findAndCountAll = async (filters = {}, sort = {}, pagination = {}) => {
+  const { limit, offset } = pagination;
+  const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
+
+  const { count, rows } = await ${modelName}.findAndCountAll({
+    where: filters,
+    order,
+    limit,
+    offset
+  });
+
+  return {
+    items: rows,
+    total: count
+  };
+};
+
+export const findByPk = async (id) => {
+  const item = await ${modelName}.findByPk(id);
+
+  if (!item) {
+    throw new AppError(COMMON_ERRORS.NOT_FOUND);
   }
 
-  async getAllPaginated(filters = {}, sort = {}, pagination = {}) {
-    const { limit, offset } = pagination;
-    const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
+  return item;
+};
 
-    const { count, rows } = await ${modelName}.findAndCountAll({
-      where: filters,
-      order,
-      limit,
-      offset
-    });
+export const createOne = async (data) => {
+  const item = await ${modelName}.create(data);
+  return item;
+};
 
-    return {
-      items: rows,
-      total: count
-    };
+export const updateOne = async (id, data) => {
+  const item = await ${modelName}.findByPk(id);
+  
+  if (!item) {
+    throw new AppError(COMMON_ERRORS.NOT_FOUND);
   }
 
-  async getById(id) {
-    const item = await ${modelName}.findByPk(id);
+  await item.update(data);
+  return findByPk(id);
+};
 
-    if (!item) {
-      throw new AppError(COMMON_ERRORS.NOT_FOUND);
-    }
+export const deleteOne = async (id) => {
+  const item = await ${modelName}.findByPk(id);
 
-    return item;
+  if (!item) {
+    throw new AppError(COMMON_ERRORS.NOT_FOUND);
   }
 
-  async create(data) {
-    const item = await ${modelName}.create(data);
-    return item;
-  }
-
-  async update(id, data) {
-    const item = await ${modelName}.findByPk(id);
-    
-    if (!item) {
-      throw new AppError(COMMON_ERRORS.NOT_FOUND);
-    }
-
-    await item.update(data);
-    return this.getById(id);
-  }
-
-  async delete(id) {
-    const item = await ${modelName}.findByPk(id);
-
-    if (!item) {
-      throw new AppError(COMMON_ERRORS.NOT_FOUND);
-    }
-
-    await item.destroy();
-    return { success: true };
-  }
-}
-
-export default new ${modelName}Manager();
+  await item.destroy();
+  return { success: true };
+};
 `;
 
 // Generate Controller
-const controllerContent = `import ${moduleName}Manager from './manager.js';
+const controllerContent = `import { findAll, findAndCountAll, findByPk, createOne, updateOne, deleteOne } from './manager.js';
 import { catchAsync } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 
 export const getAllPaginated = catchAsync(async (req, res) => {
-  const { items, total } = await ${moduleName}Manager.getAllPaginated(
+  const { items, total } = await findAndCountAll(
     req.filters || {},
     req.sort || {},
     req.pagination || {}
@@ -280,7 +276,7 @@ export const getAllPaginated = catchAsync(async (req, res) => {
 });
 
 export const getAll = catchAsync(async (req, res) => {
-  const items = await ${moduleName}Manager.getAll(
+  const items = await findAll(
     req.filters || {},
     req.sort || {}
   );
@@ -293,7 +289,7 @@ export const getAll = catchAsync(async (req, res) => {
 
 export const getById = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const item = await ${moduleName}Manager.getById(id);
+  const item = await findByPk(id);
 
   res.status(200).json({
     success: true,
@@ -302,7 +298,7 @@ export const getById = catchAsync(async (req, res) => {
 });
 
 export const create = catchAsync(async (req, res) => {
-  const item = await ${moduleName}Manager.create(req.body);
+  const item = await createOne(req.body);
   logger.info(\`${modelName} created: \${item.id}\`);
 
   res.status(201).json({
@@ -314,7 +310,7 @@ export const create = catchAsync(async (req, res) => {
 
 export const update = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const item = await ${moduleName}Manager.update(id, req.body);
+  const item = await updateOne(id, req.body);
   logger.info(\`${modelName} updated: \${id}\`);
 
   res.status(200).json({
@@ -326,7 +322,7 @@ export const update = catchAsync(async (req, res) => {
 
 export const deleteItem = catchAsync(async (req, res) => {
   const { id } = req.params;
-  await ${moduleName}Manager.delete(id);
+  await deleteOne(id);
   logger.info(\`${modelName} deleted: \${id}\`);
 
   res.status(200).json({
