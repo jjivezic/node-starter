@@ -265,79 +265,75 @@ const controllerContent = `import ${moduleName}Manager from './manager.js';
 import { catchAsync } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 
-class ${modelName}Controller {
-  getAllPaginated = catchAsync(async (req, res) => {
-    const { items, total } = await ${moduleName}Manager.getAllPaginated(
-      req.filters || {},
-      req.sort || {},
-      req.pagination || {}
-    );
+export const getAllPaginated = catchAsync(async (req, res) => {
+  const { items, total } = await ${moduleName}Manager.getAllPaginated(
+    req.filters || {},
+    req.sort || {},
+    req.pagination || {}
+  );
 
-    res.status(200).json({
-      success: true,
-      data: items,
-      total
-    });
+  res.status(200).json({
+    success: true,
+    data: items,
+    total
   });
+});
 
-  getAll = catchAsync(async (req, res) => {
-    const items = await ${moduleName}Manager.getAll(
-      req.filters || {},
-      req.sort || {}
-    );
+export const getAll = catchAsync(async (req, res) => {
+  const items = await ${moduleName}Manager.getAll(
+    req.filters || {},
+    req.sort || {}
+  );
 
-    res.status(200).json({
-      success: true,
-      data: items
-    });
+  res.status(200).json({
+    success: true,
+    data: items
   });
+});
 
-  getById = catchAsync(async (req, res) => {
-    const { id } = req.params;
-    const item = await ${moduleName}Manager.getById(id);
+export const getById = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const item = await ${moduleName}Manager.getById(id);
 
-    res.status(200).json({
-      success: true,
-      data: item
-    });
+  res.status(200).json({
+    success: true,
+    data: item
   });
+});
 
-  create = catchAsync(async (req, res) => {
-    const item = await ${moduleName}Manager.create(req.body);
-    logger.info(\`${modelName} created: \${item.id}\`);
+export const create = catchAsync(async (req, res) => {
+  const item = await ${moduleName}Manager.create(req.body);
+  logger.info(\`${modelName} created: \${item.id}\`);
 
-    res.status(201).json({
-      success: true,
-      message: '${modelName} created successfully',
-      data: item
-    });
+  res.status(201).json({
+    success: true,
+    message: '${modelName} created successfully',
+    data: item
   });
+});
 
-  update = catchAsync(async (req, res) => {
-    const { id } = req.params;
-    const item = await ${moduleName}Manager.update(id, req.body);
-    logger.info(\`${modelName} updated: \${id}\`);
+export const update = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const item = await ${moduleName}Manager.update(id, req.body);
+  logger.info(\`${modelName} updated: \${id}\`);
 
-    res.status(200).json({
-      success: true,
-      message: '${modelName} updated successfully',
-      data: item
-    });
+  res.status(200).json({
+    success: true,
+    message: '${modelName} updated successfully',
+    data: item
   });
+});
 
-  delete = catchAsync(async (req, res) => {
-    const { id } = req.params;
-    await ${moduleName}Manager.delete(id);
-    logger.info(\`${modelName} deleted: \${id}\`);
+export const deleteItem = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  await ${moduleName}Manager.delete(id);
+  logger.info(\`${modelName} deleted: \${id}\`);
 
-    res.status(200).json({
-      success: true,
-      message: '${modelName} deleted successfully'
-    });
+  res.status(200).json({
+    success: true,
+    message: '${modelName} deleted successfully'
   });
-}
-
-export default new ${modelName}Controller();
+});
 `;
 
 // Generate Joi validation schemas
@@ -504,7 +500,7 @@ const createSchemaStr = generateSwaggerSchema(schema.fields, true);
 const updateSchemaStr = generateSwaggerSchema(schema.fields, false);
 
 const routesContent = `import express from 'express';
-import ${moduleName}Controller from './controller.js';
+import { getAllPaginated, getAll, getById, create, update, deleteItem } from './controller.js';
 import authMiddleware from '../../middleware/authMiddleware.js';
 import { validate } from '../../middleware/validate.js';
 import { paginate, sort, filter } from '../../middleware/queryHelpers.js';
@@ -576,7 +572,7 @@ router.get(
   paginate,
   sort([${sortFieldsStr}]),
   filter([${filterFieldsStr}]),
-  ${moduleName}Controller.getAllPaginated
+  getAllPaginated
 );
 
 /**
@@ -629,7 +625,7 @@ router.get(
   '/all',
   sort([${sortFieldsStr}]),
   filter([${filterFieldsStr}]),
-  ${moduleName}Controller.getAll
+  getAll
 );
 
 /**
@@ -652,7 +648,7 @@ router.get(
  *       404:
  *         description: ${modelName} not found
  */
-router.get('/:id', validate(idParamSchema, 'params'), ${moduleName}Controller.getById);
+router.get('/:id', validate(idParamSchema, 'params'), getById);
 
 /**
  * @swagger
@@ -674,7 +670,7 @@ router.get('/:id', validate(idParamSchema, 'params'), ${moduleName}Controller.ge
  *       400:
  *         description: Validation error
  */
-router.post('/', validate(create${modelName}Schema), ${moduleName}Controller.create);
+router.post('/', validate(create${modelName}Schema), create);
 
 /**
  * @swagger
@@ -702,7 +698,7 @@ router.post('/', validate(create${modelName}Schema), ${moduleName}Controller.cre
  *       404:
  *         description: ${modelName} not found
  */
-router.put('/:id', validate(idParamSchema, 'params'), validate(update${modelName}Schema), ${moduleName}Controller.update);
+router.put('/:id', validate(idParamSchema, 'params'), validate(update${modelName}Schema), update);
 
 /**
  * @swagger
@@ -724,7 +720,7 @@ router.put('/:id', validate(idParamSchema, 'params'), validate(update${modelName
  *       404:
  *         description: ${modelName} not found
  */
-router.delete('/:id', validate(idParamSchema, 'params'), ${moduleName}Controller.delete);
+router.delete('/:id', validate(idParamSchema, 'params'), deleteItem);
 
 export default router;
 `;
