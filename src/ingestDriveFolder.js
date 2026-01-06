@@ -5,7 +5,7 @@ import mammoth from 'mammoth';
 import 'dotenv/config';
 
 import { listAllFilesRecursive, downloadFile } from './services/googleDriveService.js';
-import vectorService from './services/vectorService.js';
+import * as vectorService from './services/vectorService.js';
 
 console.log('Ingest Google Drive Folder Service Loaded');
 
@@ -28,10 +28,7 @@ async function extractText(filePath, mimeType) {
   }
 
   // DOCX (both MS Word and Google Docs exported as DOCX)
-  if (
-    mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    mimeType === 'application/vnd.google-apps.document'
-  ) {
+  if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || mimeType === 'application/vnd.google-apps.document') {
     try {
       console.log('Extracting DOCX...****************************');
       const result = await mammoth.extractRawText({ path: filePath });
@@ -74,7 +71,6 @@ function getExtension(mimeType, fileName) {
 // MAIN INGEST WITH SMART SYNC
 // -------------------------
 async function ingestDriveFolder(folderId) {
-
   console.log('Folder ID:', folderId);
   console.log('🔄 Starting smart sync...');
 
@@ -83,13 +79,11 @@ async function ingestDriveFolder(folderId) {
   console.log(`Found ${driveFiles.length} files in Google Drive`);
 
   // Get all existing documents from vector DB
-  const existingDocs = await vectorService.getAllDocuments();
+  const existingDocs = await vectorService.getAll();
   console.log(`Found ${existingDocs.count} documents in vector DB`);
 
   // Create map of existing documents by ID
-  const existingDocsMap = new Map(
-    existingDocs.documents.map(doc => [doc.id, doc.metadata])
-  );
+  const existingDocsMap = new Map(existingDocs.documents.map((doc) => [doc.id, doc.metadata]));
 
   // Track what needs to be updated/added/deleted
   const toAdd = [];
@@ -97,6 +91,7 @@ async function ingestDriveFolder(folderId) {
   const existingIds = new Set();
 
   // Check each Drive file
+  // eslint-disable-next-line no-restricted-syntax
   for (const file of driveFiles) {
     existingIds.add(file.id);
     const existing = existingDocsMap.get(file.id);
@@ -116,6 +111,7 @@ async function ingestDriveFolder(folderId) {
 
   // Find files to delete (in DB but not in Drive)
   const toDelete = [];
+  // eslint-disable-next-line no-restricted-syntax
   for (const doc of existingDocs.documents) {
     if (!existingIds.has(doc.id)) {
       toDelete.push(doc.id);
@@ -144,13 +140,17 @@ async function ingestDriveFolder(folderId) {
 
   // Delete old versions of updated files
   if (toUpdate.length > 0) {
-    const updateIds = toUpdate.map(f => f.id);
+    const updateIds = toUpdate.map((f) => f.id);
     await vectorService.deleteDocuments(updateIds);
     console.log(`Removed ${toUpdate.length} old document versions`);
   }
 
-  await Promise.all(
-    filesToProcess.map(async (file) => {
+  // Process files sequentially for better stability
+  let processedCount = 0;
+  let failedCount = 0;
+  // eslint-disable-next-line no-restricted-syntax
+  for (const file of filesToProcess) {
+    try {
       const ext = getExtension(file.mimeType, file.name);
       const destPath = path.join(tmpDir, `${file.id}${ext}`);
 
@@ -158,11 +158,15 @@ async function ingestDriveFolder(folderId) {
 
       if (!fs.existsSync(destPath)) {
         console.warn('Missing file:', destPath);
-        return;
+        failedCount += 1;
+        // Skip to next file
+        // eslint-disable-next-line no-continue
+        continue;
       }
 
       const text = await extractText(destPath, file.mimeType);
       console.log('Extracted text length:', text.length, file.folderPath);
+
       if (text?.trim()) {
         // Add folderPath to metadata (if available)
         await vectorService.addDocuments([
@@ -178,15 +182,20 @@ async function ingestDriveFolder(folderId) {
           }
         ]);
         console.log('Indexed:', file.name);
+        processedCount += 1;
       } else {
         console.log('Skipped (empty):', file.name);
       }
 
       fs.unlinkSync(destPath);
-    })
-  );
+    } catch (error) {
+      console.error(`Failed to process ${file.name}:`, error.message);
+      failedCount += 1;
+      // Continue processing other files even if this one fails
+    }
+  }
 
-  console.log(`\n✅ Smart sync complete! Processed ${filesToProcess.length} files`);
+  console.log(`\n✅ Smart sync complete! Processed ${processedCount}/${filesToProcess.length} files (${failedCount} failed)`);
 }
 
 // RUN

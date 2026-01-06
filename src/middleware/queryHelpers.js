@@ -3,7 +3,7 @@ import { Op } from 'sequelize';
 /**
  * Pagination middleware
  * Adds pagination parameters to req.pagination
- * 
+ *
  * Query params:
  * - page: Page number (default: 1)
  * - limit: Items per page (default: 10, max: 100)
@@ -25,7 +25,7 @@ export const paginate = (req, res, next) => {
 /**
  * Sorting middleware
  * Adds sorting parameters to req.sort
- * 
+ *
  * Query params:
  * - sortBy: Field to sort by (default: 'created_at')
  * - sortOrder: 'asc' or 'desc' (default: 'desc')
@@ -39,7 +39,7 @@ export const sort = (allowedFields = ['created_at'], fieldMapping = {}) => {
     if (fieldMapping[sortBy]) {
       sortBy = fieldMapping[sortBy];
     }
-console.log('Allowed sort fields:', allowedFields);
+    console.log('Allowed sort fields:', allowedFields);
     // Validate sortBy field
     if (!allowedFields.includes(sortBy)) {
       return res.status(400).json({
@@ -68,7 +68,7 @@ console.log('Allowed sort fields:', allowedFields);
 /**
  * Filtering middleware
  * Adds filtering parameters to req.filters
- * 
+ *
  * Query params examples:
  * - filter[name]=John
  * - filter[age][gte]=18
@@ -121,4 +121,3 @@ export const filter = (allowedFields = []) => {
     next();
   };
 };
-

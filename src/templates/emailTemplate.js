@@ -1,3 +1,4 @@
+/* eslint-disable */
 export const baseEmailTemplate = ({ title, body, footerText = 'Thank you for using our service!' }) => {
   return `
 <!DOCTYPE html>

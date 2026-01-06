@@ -1,54 +1,7 @@
-import vectorService from '../../services/vectorService.js';
+import { addMeny, search, getStats, deleteMeny, reset, getAll } from '../../services/vectorService.js';
 import logger from '../../config/logger.js';
 
-/**
- * @swagger
- * tags:
- *   name: Vector
- *   description: Vector database operations for RAG
- */
-
-/**
- * @swagger
- * /api/vector/add:
- *   post:
- *     summary: Add documents to vector database
- *     tags: [Vector]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - documents
- *             properties:
- *               documents:
- *                 type: array
- *                 items:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                     text:
- *                       type: string
- *                     metadata:
- *                       type: object
- *                 example:
- *                   - id: "doc1"
- *                     text: "Node.js is a JavaScript runtime"
- *                     metadata:
- *                       fileName: "nodejs-guide.txt"
- *                       category: "programming"
- *     responses:
- *       200:
- *         description: Documents added successfully
- *       400:
- *         description: Invalid request
- *       500:
- *         description: Server error
- */
-export const addDocuments = async (req, res, next) => {
+export const addVectorDocuments = async (req, res, next) => {
   try {
     const { documents } = req.body;
 
@@ -56,7 +9,7 @@ export const addDocuments = async (req, res, next) => {
       count: documents.length
     });
 
-    const result = await vectorService.addDocuments(documents);
+    const result = await addMeny(documents);
 
     logger.withRequestId(req.id).info('Documents added successfully to vector DB');
 
@@ -71,36 +24,7 @@ export const addDocuments = async (req, res, next) => {
   }
 };
 
-/**
- * @swagger
- * /api/vector/search:
- *   post:
- *     summary: Search for similar documents
- *     tags: [Vector]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - query
- *             properties:
- *               query:
- *                 type: string
- *                 example: "How to use async/await in Node.js?"
- *               nResults:
- *                 type: number
- *                 default: 5
- *     responses:
- *       200:
- *         description: Search results returned
- *       400:
- *         description: Invalid request
- *       500:
- *         description: Server error
- */
-export const search = async (req, res, next) => {
+export const searchVectorDocuments = async (req, res, next) => {
   try {
     const { query, nResults = 5, keyword, maxDistance } = req.body;
     console.log('VectorController.search called with query:', query, 'nResults:', nResults, 'keyword:', keyword, 'maxDistance:', maxDistance);
@@ -111,7 +35,7 @@ export const search = async (req, res, next) => {
       maxDistance
     });
 
-    const results = await vectorService.search(query, nResults, keyword, maxDistance);
+    const results = await search(query, nResults, keyword, maxDistance);
 
     logger.withRequestId(req.id).info('Search completed', {
       resultsFound: results.length
@@ -134,21 +58,11 @@ export const search = async (req, res, next) => {
   }
 };
 
-/**
- * @swagger
- * /api/vector/stats:
- *   get:
- *     summary: Get vector database statistics
- *     tags: [Vector]
- *     responses:
- *       200:
- *         description: Statistics returned
- */
-export const getStats = async (req, res, next) => {
+export const getDocumentStats = async (req, res, next) => {
   try {
     logger.withRequestId(req.id).info('Getting vector DB stats');
 
-    const stats = await vectorService.getStats();
+    const stats = await getStats();
 
     res.json({
       success: true,
@@ -161,31 +75,7 @@ export const getStats = async (req, res, next) => {
   }
 };
 
-/**
- * @swagger
- * /api/vector/delete:
- *   post:
- *     summary: Delete documents by IDs
- *     tags: [Vector]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - ids
- *             properties:
- *               ids:
- *                 type: array
- *                 items:
- *                   type: string
- *                 example: ["doc1", "doc2"]
- *     responses:
- *       200:
- *         description: Documents deleted
- */
-export const deleteDocuments = async (req, res, next) => {
+export const deleteVectorDocuments = async (req, res, next) => {
   try {
     const { ids } = req.body;
 
@@ -193,7 +83,7 @@ export const deleteDocuments = async (req, res, next) => {
       count: ids.length
     });
 
-    const result = await vectorService.deleteDocuments(ids);
+    const result = await deleteMeny(ids);
 
     res.json({
       success: true,
@@ -206,21 +96,11 @@ export const deleteDocuments = async (req, res, next) => {
   }
 };
 
-/**
- * @swagger
- * /api/vector/reset:
- *   post:
- *     summary: Reset vector database (delete all documents)
- *     tags: [Vector]
- *     responses:
- *       200:
- *         description: Database reset
- */
-export const reset = async (req, res, next) => {
+export const resetVectorDocuments = async (req, res, next) => {
   try {
     logger.withRequestId(req.id).info('Resetting vector DB');
 
-    const result = await vectorService.reset();
+    const result = await reset();
 
     res.json({
       success: true,
@@ -233,21 +113,11 @@ export const reset = async (req, res, next) => {
   }
 };
 
-/**
- * @swagger
- * /api/vector/all:
- *   get:
- *     summary: Get all documents
- *     tags: [Vector]
- *     responses:
- *       200:
- *         description: All documents returned
- */
-export const getAllDocuments = async (req, res, next) => {
+export const getAllVectorDocuments = async (req, res, next) => {
   try {
     logger.withRequestId(req.id).info('Getting all documents from vector DB');
 
-    const result = await vectorService.getAllDocuments();
+    const result = await getAll();
 
     res.json({
       success: true,

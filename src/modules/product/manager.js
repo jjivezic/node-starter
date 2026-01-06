@@ -54,7 +54,7 @@ export const updateOne = async (id, data) => {
   }
 
   await item.update(data);
-  return getById(id);
+  return findByPk(id);
 };
 
 export const deleteOne = async (id) => {

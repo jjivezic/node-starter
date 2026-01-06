@@ -24,6 +24,7 @@ class EmailService {
 
     this.transporter = null; // Add transporter cache
     this.transporterExpiry = null;
+    this.emailQueue = new Map(); // Track sent emails for rate limiting
     
     // Email metrics
     this.metrics = {
@@ -97,7 +98,7 @@ class EmailService {
     return this.transporter;
   }
 
-  async sendEmail({ to, subject, text, html, requestId = null, skipRateLimit = false }) {
+  async sendEmail({ to, subject, text, html, requestId = null }) {
     const log = requestId ? logger.withRequestId(requestId) : logger;
     
     try {

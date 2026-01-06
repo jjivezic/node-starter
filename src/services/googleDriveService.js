@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { google } from 'googleapis';
-import logger from '../config/logger.js';
+// import logger from '../config/logger.js';
 
 /**
  * Google Drive Service
@@ -37,24 +37,26 @@ export async function listAllFilesRecursive(folderId, currentPath = '') {
     fields: 'files(id, name, mimeType, parents, modifiedTime)',
     pageSize: 1000
   });
-  const files = [];
-  for (const file of filesListResult.data.files) {
-    if (file.mimeType === 'application/vnd.google-apps.folder') {
-      // It's a folder, recurse
-      const subfolderPath = currentPath ? `${currentPath}/${file.name}` : file.name;
-      console.log('Recursing into folder:', subfolderPath);
-      const subFiles = await listAllFilesRecursive(file.id, subfolderPath);
-      files.push(...subFiles);
-    } else {
+  const files = filesListResult.data.files || [];
+  const results = await Promise.all(
+    files.map(async (file) => {
+      if (file.mimeType === 'application/vnd.google-apps.folder') {
+        // It's a folder, recurse
+        const subfolderPath = currentPath ? `${currentPath}/${file.name}` : file.name;
+        console.log('Recursing into folder:', subfolderPath);
+        return listAllFilesRecursive(file.id, subfolderPath);
+      }
       // It's a file, add with full path
       console.log('Found file:', currentPath);
-      files.push({
-        ...file,
-        folderPath: currentPath
-      });
-    }
-  }
-  return files;
+      return [
+        {
+          ...file,
+          folderPath: currentPath
+        }
+      ];
+    })
+  );
+  return results.flat();
 }
 export async function downloadFile(fileId, destPath, mimeType) {
   const { createWriteStream } = await import('fs');

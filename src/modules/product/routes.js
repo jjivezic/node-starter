@@ -1,6 +1,6 @@
 import express from 'express';
 import { getAllPaginated, getAll, getById, create, update, deleteProduct } from './controller.js';
-import authMiddleware from '../../middleware/authMiddleware.js';
+// import authMiddleware from '../../middleware/authMiddleware.js';
 import { validate } from '../../middleware/validate.js';
 import { paginate, sort, filter } from '../../middleware/queryHelpers.js';
 import { createProductSchema, updateProductSchema, idParamSchema } from './validation.js';
