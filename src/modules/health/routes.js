@@ -1,5 +1,5 @@
 import express from 'express';
-import healthController from './controller.js';
+import { checkHealth, checkDetailedHealth } from './controller.js';
 
 const router = express.Router();
 
@@ -37,7 +37,7 @@ const router = express.Router();
  *                       type: string
  *                       example: development
  */
-router.get('/', healthController.checkHealth);
+router.get('/', checkHealth);
 
 /**
  * @swagger
@@ -108,6 +108,6 @@ router.get('/', healthController.checkHealth);
  *       503:
  *         description: One or more services are degraded
  */
-router.get('/detailed', healthController.checkDetailedHealth);
+router.get('/detailed', checkDetailedHealth);
 
 export default router;

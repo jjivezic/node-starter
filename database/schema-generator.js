@@ -191,153 +191,145 @@ import { AppError, COMMON_ERRORS } from '../../middleware/errorHandler.js';
 
 const { ${modelName} } = db;
 
-class ${modelName}Manager {
-  async getAll(filters = {}, sort = {}) {
-    const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
+export const findAll = async (filters = {}, sort = {}) => {
+  const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
 
-    const items = await ${modelName}.findAll({
-      where: filters,
-      order
-    });
-    return items;
+  const items = await ${modelName}.findAll({
+    where: filters,
+    order
+  });
+  return items;
+};
+
+export const findAndCountAll = async (filters = {}, sort = {}, pagination = {}) => {
+  const { limit, offset } = pagination;
+  const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
+
+  const { count, rows } = await ${modelName}.findAndCountAll({
+    where: filters,
+    order,
+    limit,
+    offset
+  });
+
+  return {
+    items: rows,
+    total: count
+  };
+};
+
+export const findByPk = async (id) => {
+  const item = await ${modelName}.findByPk(id);
+
+  if (!item) {
+    throw new AppError(COMMON_ERRORS.NOT_FOUND);
   }
 
-  async getAllPaginated(filters = {}, sort = {}, pagination = {}) {
-    const { limit, offset } = pagination;
-    const order = sort.field ? [[sort.field, sort.order]] : [['created_at', 'DESC']];
+  return item;
+};
 
-    const { count, rows } = await ${modelName}.findAndCountAll({
-      where: filters,
-      order,
-      limit,
-      offset
-    });
+export const createOne = async (data) => {
+  const item = await ${modelName}.create(data);
+  return item;
+};
 
-    return {
-      items: rows,
-      total: count
-    };
+export const updateOne = async (id, data) => {
+  const item = await ${modelName}.findByPk(id);
+  
+  if (!item) {
+    throw new AppError(COMMON_ERRORS.NOT_FOUND);
   }
 
-  async getById(id) {
-    const item = await ${modelName}.findByPk(id);
+  await item.update(data);
+  return findByPk(id);
+};
 
-    if (!item) {
-      throw new AppError(COMMON_ERRORS.NOT_FOUND);
-    }
+export const deleteOne = async (id) => {
+  const item = await ${modelName}.findByPk(id);
 
-    return item;
+  if (!item) {
+    throw new AppError(COMMON_ERRORS.NOT_FOUND);
   }
 
-  async create(data) {
-    const item = await ${modelName}.create(data);
-    return item;
-  }
-
-  async update(id, data) {
-    const item = await ${modelName}.findByPk(id);
-    
-    if (!item) {
-      throw new AppError(COMMON_ERRORS.NOT_FOUND);
-    }
-
-    await item.update(data);
-    return this.getById(id);
-  }
-
-  async delete(id) {
-    const item = await ${modelName}.findByPk(id);
-
-    if (!item) {
-      throw new AppError(COMMON_ERRORS.NOT_FOUND);
-    }
-
-    await item.destroy();
-    return { success: true };
-  }
-}
-
-export default new ${modelName}Manager();
+  await item.destroy();
+  return { success: true };
+};
 `;
 
 // Generate Controller
-const controllerContent = `import ${moduleName}Manager from './manager.js';
+const controllerContent = `import { findAll, findAndCountAll, findByPk, createOne, updateOne, deleteOne } from './manager.js';
 import { catchAsync } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
 
-class ${modelName}Controller {
-  getAllPaginated = catchAsync(async (req, res) => {
-    const { items, total } = await ${moduleName}Manager.getAllPaginated(
-      req.filters || {},
-      req.sort || {},
-      req.pagination || {}
-    );
+export const getAllPaginated = catchAsync(async (req, res) => {
+  const { items, total } = await findAndCountAll(
+    req.filters || {},
+    req.sort || {},
+    req.pagination || {}
+  );
 
-    res.status(200).json({
-      success: true,
-      data: items,
-      total
-    });
+  res.status(200).json({
+    success: true,
+    data: items,
+    total
   });
+});
 
-  getAll = catchAsync(async (req, res) => {
-    const items = await ${moduleName}Manager.getAll(
-      req.filters || {},
-      req.sort || {}
-    );
+export const getAll = catchAsync(async (req, res) => {
+  const items = await findAll(
+    req.filters || {},
+    req.sort || {}
+  );
 
-    res.status(200).json({
-      success: true,
-      data: items
-    });
+  res.status(200).json({
+    success: true,
+    data: items
   });
+});
 
-  getById = catchAsync(async (req, res) => {
-    const { id } = req.params;
-    const item = await ${moduleName}Manager.getById(id);
+export const getById = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const item = await findByPk(id);
 
-    res.status(200).json({
-      success: true,
-      data: item
-    });
+  res.status(200).json({
+    success: true,
+    data: item
   });
+});
 
-  create = catchAsync(async (req, res) => {
-    const item = await ${moduleName}Manager.create(req.body);
-    logger.info(\`${modelName} created: \${item.id}\`);
+export const create = catchAsync(async (req, res) => {
+  const item = await createOne(req.body);
+  logger.info(\`${modelName} created: \${item.id}\`);
 
-    res.status(201).json({
-      success: true,
-      message: '${modelName} created successfully',
-      data: item
-    });
+  res.status(201).json({
+    success: true,
+    message: '${modelName} created successfully',
+    data: item
   });
+});
 
-  update = catchAsync(async (req, res) => {
-    const { id } = req.params;
-    const item = await ${moduleName}Manager.update(id, req.body);
-    logger.info(\`${modelName} updated: \${id}\`);
+export const update = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const item = await updateOne(id, req.body);
+  logger.info(\`${modelName} updated: \${id}\`);
 
-    res.status(200).json({
-      success: true,
-      message: '${modelName} updated successfully',
-      data: item
-    });
+  res.status(200).json({
+    success: true,
+    message: '${modelName} updated successfully',
+    data: item
   });
+});
 
-  delete = catchAsync(async (req, res) => {
-    const { id } = req.params;
-    await ${moduleName}Manager.delete(id);
-    logger.info(\`${modelName} deleted: \${id}\`);
+export const deleteItem = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  await deleteOne(id);
+  logger.info(\`${modelName} deleted: \${id}\`);
 
-    res.status(200).json({
-      success: true,
-      message: '${modelName} deleted successfully'
-    });
+  res.status(200).json({
+    success: true,
+    message: '${modelName} deleted successfully'
   });
-}
-
-export default new ${modelName}Controller();
+});
 `;
 
 // Generate Joi validation schemas
@@ -504,7 +496,7 @@ const createSchemaStr = generateSwaggerSchema(schema.fields, true);
 const updateSchemaStr = generateSwaggerSchema(schema.fields, false);
 
 const routesContent = `import express from 'express';
-import ${moduleName}Controller from './controller.js';
+import { getAllPaginated, getAll, getById, create, update, deleteItem } from './controller.js';
 import authMiddleware from '../../middleware/authMiddleware.js';
 import { validate } from '../../middleware/validate.js';
 import { paginate, sort, filter } from '../../middleware/queryHelpers.js';
@@ -576,7 +568,7 @@ router.get(
   paginate,
   sort([${sortFieldsStr}]),
   filter([${filterFieldsStr}]),
-  ${moduleName}Controller.getAllPaginated
+  getAllPaginated
 );
 
 /**
@@ -629,7 +621,7 @@ router.get(
   '/all',
   sort([${sortFieldsStr}]),
   filter([${filterFieldsStr}]),
-  ${moduleName}Controller.getAll
+  getAll
 );
 
 /**
@@ -652,7 +644,7 @@ router.get(
  *       404:
  *         description: ${modelName} not found
  */
-router.get('/:id', validate(idParamSchema, 'params'), ${moduleName}Controller.getById);
+router.get('/:id', validate(idParamSchema, 'params'), getById);
 
 /**
  * @swagger
@@ -674,7 +666,7 @@ router.get('/:id', validate(idParamSchema, 'params'), ${moduleName}Controller.ge
  *       400:
  *         description: Validation error
  */
-router.post('/', validate(create${modelName}Schema), ${moduleName}Controller.create);
+router.post('/', validate(create${modelName}Schema), create);
 
 /**
  * @swagger
@@ -702,7 +694,7 @@ router.post('/', validate(create${modelName}Schema), ${moduleName}Controller.cre
  *       404:
  *         description: ${modelName} not found
  */
-router.put('/:id', validate(idParamSchema, 'params'), validate(update${modelName}Schema), ${moduleName}Controller.update);
+router.put('/:id', validate(idParamSchema, 'params'), validate(update${modelName}Schema), update);
 
 /**
  * @swagger
@@ -724,7 +716,7 @@ router.put('/:id', validate(idParamSchema, 'params'), validate(update${modelName
  *       404:
  *         description: ${modelName} not found
  */
-router.delete('/:id', validate(idParamSchema, 'params'), ${moduleName}Controller.delete);
+router.delete('/:id', validate(idParamSchema, 'params'), deleteItem);
 
 export default router;
 `;

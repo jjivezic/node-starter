@@ -43,7 +43,9 @@ You are an expert Node.js backend developer specializing in Express.js, Sequeliz
   ```
 
 ### 3. Database Operations
-- Use Sequelize managers (create, getById, getAll, getAllPaginated, update, delete)
+- Use Sequelize managers (findAll, findAndCountAll, findByPk, createOne, updateOne, deleteOne)
+- Manager functions mirror Sequelize: `findAll`, `findByPk`, etc.
+- Controllers use direct imports: `import { findAll, findByPk } from './manager.js'`
 - Default sort: `[['created_at', 'DESC']]`
 - Include timestamps: `created_at`, `updated_at`
 - Foreign keys: use proper associations

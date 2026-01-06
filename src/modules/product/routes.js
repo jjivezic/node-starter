@@ -1,5 +1,5 @@
 import express from 'express';
-import productController from './controller.js';
+import { getAllPaginated, getAll, getById, create, update, deleteProduct } from './controller.js';
 import authMiddleware from '../../middleware/authMiddleware.js';
 import { validate } from '../../middleware/validate.js';
 import { paginate, sort, filter } from '../../middleware/queryHelpers.js';
@@ -82,7 +82,7 @@ router.get(
   paginate,
   sort(['name', 'price', 'created_at', 'updated_at']),
   filter(['name', 'price', 'description', 'user_id', 'stock']),
-  productController.getAllPaginated
+  getAllPaginated
 );
 
 /**
@@ -146,7 +146,7 @@ router.get(
   '/all',
   sort(['name', 'price', 'created_at', 'updated_at']),
   filter(['name', 'price', 'description', 'user_id', 'stock']),
-  productController.getAll
+  getAll
 );
 
 /**
@@ -169,7 +169,7 @@ router.get(
  *       404:
  *         description: Product not found
  */
-router.get('/:id', validate(idParamSchema, 'params'), productController.getById);
+router.get('/:id', validate(idParamSchema, 'params'), getById);
 
 /**
  * @swagger
@@ -211,7 +211,7 @@ router.get('/:id', validate(idParamSchema, 'params'), productController.getById)
  *       400:
  *         description: Validation error
  */
-router.post('/', validate(createProductSchema), productController.create);
+router.post('/', validate(createProductSchema), create);
 
 /**
  * @swagger
@@ -248,7 +248,7 @@ router.post('/', validate(createProductSchema), productController.create);
  *       404:
  *         description: Product not found
  */
-router.put('/:id', validate(idParamSchema, 'params'), validate(updateProductSchema), productController.update);
+router.put('/:id', validate(idParamSchema, 'params'), validate(updateProductSchema), update);
 
 /**
  * @swagger
@@ -270,6 +270,6 @@ router.put('/:id', validate(idParamSchema, 'params'), validate(updateProductSche
  *       404:
  *         description: Product not found
  */
-router.delete('/:id', validate(idParamSchema, 'params'), productController.delete);
+router.delete('/:id', validate(idParamSchema, 'params'), deleteProduct);
 
 export default router;
