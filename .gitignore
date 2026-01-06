@@ -8,3 +8,6 @@ yarn-debug.log*
 yarn-error.log*
 .vscode/
 .idea/
+
+# Google credentials - DO NOT COMMIT
+google-credentials.json
