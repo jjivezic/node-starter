@@ -29,7 +29,7 @@ export async function listFilesInFolder(folderId) {
 }
 export async function listAllFilesRecursive(folderId) {
   console.log('🔍 Fetching all files from Drive (optimized)...');
-  
+
   const allFiles = [];
   const folderQueue = [{ id: folderId, path: '' }];
   const processedFolders = new Set();
@@ -38,7 +38,7 @@ export async function listAllFilesRecursive(folderId) {
   // Process folders iteratively (not recursively) to avoid deep call stacks
   while (folderQueue.length > 0) {
     const { id: currentFolderId, path: currentPath } = folderQueue.shift();
-    
+
     // Skip if already processed (prevent duplicates)
     // eslint-disable-next-line no-continue
     if (processedFolders.has(currentFolderId)) continue;
@@ -52,7 +52,7 @@ export async function listAllFilesRecursive(folderId) {
     });
 
     const items = response.data.files || [];
-    
+    // eslint-disable-next-line no-restricted-syntax
     for (const item of items) {
       if (item.mimeType === 'application/vnd.google-apps.folder') {
         // It's a folder - add to queue for processing
@@ -69,7 +69,7 @@ export async function listAllFilesRecursive(folderId) {
   }
 
   console.log(`📊 Retrieved ${allFiles.length} files in ${apiCallCount} API call(s)`);
-  
+
   return allFiles;
 }
 export async function downloadFile(fileId, destPath, mimeType) {

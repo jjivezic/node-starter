@@ -195,7 +195,7 @@ async function ingestDriveFolder(folderId) {
     console.log(`🔄 Removing ${toUpdate.length} old document versions...`);
     const updateIds = toUpdate.map((f) => f.id);
     deleteMany(updateIds);
-    console.log(`✅ Removed old versions`);
+    console.log('✅ Removed old versions');
   }
 
   // Process files in batches for better performance and stability
@@ -273,7 +273,7 @@ async function ingestDriveFolder(folderId) {
     fileCount: driveFiles.length
   });
 
-  console.log(`\n✅ Smart sync complete!`);
+  console.log('✅ Smart sync complete!');
   console.log(`   Processed: ${processedCount}/${filesToProcess.length}`);
   console.log(`   Skipped: ${skippedCount} (empty files)`);
   console.log(`   Failed: ${failedCount}`);
