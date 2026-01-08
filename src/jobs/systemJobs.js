@@ -1,6 +1,7 @@
 import { registerJob } from '../services/cronService.js';
 import logger from '../config/logger.js';
 import db from '../../database/models/index.js';
+import ingestDriveFolder from '../services/driveIngestionService.js';
 
 /**
  * System monitoring and health check jobs
@@ -48,6 +49,27 @@ export const generateAnalytics = () => {
     async () => {
       logger.info('Generating analytics...');
       // Analytics generation logic
+    }
+  );
+};
+
+export const syncDriveFolder = () => {
+  registerJob(
+    'sync-drive-folder',
+    '0 0 * * *', // Daily at midnight
+    async () => {
+      logger.info('[DRIVE-SYNC] Starting Google Drive folder sync...');
+      try {
+        const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+        if (!folderId) {
+          logger.error('[DRIVE-SYNC] GOOGLE_DRIVE_FOLDER_ID not configured');
+          return;
+        }
+        await ingestDriveFolder(folderId);
+        logger.info('[DRIVE-SYNC] Sync completed successfully');
+      } catch (error) {
+        logger.error(`[DRIVE-SYNC] Sync failed: ${error.message}`, { stack: error.stack });
+      }
     }
   );
 };

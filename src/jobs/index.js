@@ -17,6 +17,7 @@ export const initializeJobs = () => {
   // System Jobs
   systemJobs.healthCheck();
   systemJobs.generateAnalytics();
+  systemJobs.syncDriveFolder();
 
   logger.info('[CRON] All jobs initialized');
 };

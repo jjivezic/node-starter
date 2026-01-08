@@ -1,4 +1,4 @@
-import { addMeny, search, getStats, deleteMeny, reset, getAll } from '../../services/vectorService.js';
+import { addMany, search, getStats, deleteMany, reset, getAll } from '../../services/vectorService.js';
 import logger from '../../config/logger.js';
 
 export const addVectorDocuments = async (req, res, next) => {
@@ -9,7 +9,7 @@ export const addVectorDocuments = async (req, res, next) => {
       count: documents.length
     });
 
-    const result = await addMeny(documents);
+    const result = await addMany(documents);
 
     logger.withRequestId(req.id).info('Documents added successfully to vector DB');
 
@@ -83,7 +83,7 @@ export const deleteVectorDocuments = async (req, res, next) => {
       count: ids.length
     });
 
-    const result = await deleteMeny(ids);
+    const result = await deleteMany(ids);
 
     res.json({
       success: true,

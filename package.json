@@ -18,7 +18,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.js\" \"database/**/*.js\"",
-    "ingest:drive": "node src/ingestDriveFolder.js"
+    "ingest:drive": "node src/services/driveIngestionService.js"
   },
   "keywords": [
     "express",

@@ -27,32 +27,50 @@ export async function listFilesInFolder(folderId) {
   console.log('Files retrieved:', filesListResult.data.files);
   return filesListResult.data.files;
 }
-export async function listAllFilesRecursive(folderId, currentPath = '') {
-  const filesListResult = await drive.files.list({
-    q: `'${folderId}' in parents and trashed = false`,
-    fields: 'files(id, name, mimeType, parents, modifiedTime)',
-    pageSize: 1000
-  });
-  const files = filesListResult.data.files || [];
-  const results = await Promise.all(
-    files.map(async (file) => {
-      if (file.mimeType === 'application/vnd.google-apps.folder') {
-        // It's a folder, recurse
-        const subfolderPath = currentPath ? `${currentPath}/${file.name}` : file.name;
-        console.log('Recursing into folder:', subfolderPath);
-        return listAllFilesRecursive(file.id, subfolderPath);
-      }
-      // It's a file, add with full path
-      console.log('Found file:', currentPath);
-      return [
-        {
-          ...file,
+export async function listAllFilesRecursive(folderId) {
+  console.log('🔍 Fetching all files from Drive (optimized)...');
+  
+  const allFiles = [];
+  const folderQueue = [{ id: folderId, path: '' }];
+  const processedFolders = new Set();
+  let apiCallCount = 0;
+
+  // Process folders iteratively (not recursively) to avoid deep call stacks
+  while (folderQueue.length > 0) {
+    const { id: currentFolderId, path: currentPath } = folderQueue.shift();
+    
+    // Skip if already processed (prevent duplicates)
+    // eslint-disable-next-line no-continue
+    if (processedFolders.has(currentFolderId)) continue;
+    processedFolders.add(currentFolderId);
+
+    apiCallCount += 1;
+    const response = await drive.files.list({
+      q: `'${currentFolderId}' in parents and trashed = false`,
+      fields: 'files(id, name, mimeType, parents, modifiedTime)',
+      pageSize: 1000
+    });
+
+    const items = response.data.files || [];
+    
+    for (const item of items) {
+      if (item.mimeType === 'application/vnd.google-apps.folder') {
+        // It's a folder - add to queue for processing
+        const subfolderPath = currentPath ? `${currentPath}/${item.name}` : item.name;
+        folderQueue.push({ id: item.id, path: subfolderPath });
+      } else {
+        // It's a file - add with folder path
+        allFiles.push({
+          ...item,
           folderPath: currentPath
-        }
-      ];
-    })
-  );
-  return results.flat();
+        });
+      }
+    }
+  }
+
+  console.log(`📊 Retrieved ${allFiles.length} files in ${apiCallCount} API call(s)`);
+  
+  return allFiles;
 }
 export async function downloadFile(fileId, destPath, mimeType) {
   const { createWriteStream } = await import('fs');

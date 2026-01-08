@@ -70,7 +70,7 @@ export const initialize = async () => {
  * Add documents to the vector database
  * @param {Array} documents - Array of document objects {id, text, metadata}
  */
-export const addMeny = async (documents) => {
+export const addMany = async (documents) => {
   try {
     // Ensure ChromaDB is initialized
     await initialize();
@@ -185,7 +185,7 @@ export const search = async (query, nResults = 5, keyword = null, maxDistance = 
  * Delete documents by IDs
  * @param {Array} ids - Array of document IDs to delete
  */
-export const deleteMeny = async (ids) => {
+export const deleteMany = async (ids) => {
   try {
     // Ensure ChromaDB is initialized
     if (!collection) {
