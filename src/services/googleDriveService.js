@@ -1,12 +1,19 @@
 import 'dotenv/config';
 import { google } from 'googleapis';
-// import logger from '../config/logger.js';
+import logger from '../config/logger.js';
 
 /**
  * Google Drive Service
  * - Authenticates with OAuth2
  * - Lists and downloads files from a folder
  */
+
+// Validate required environment variables
+if (!process.env.GOOGLE_DRIVE_CLIENT_EMAIL || !process.env.GOOGLE_DRIVE_PRIVATE_KEY) {
+  logger.error('Google Drive credentials not configured');
+  throw new Error('GOOGLE_DRIVE_CLIENT_EMAIL and GOOGLE_DRIVE_PRIVATE_KEY are required');
+}
+
 const auth = new google.auth.GoogleAuth({
   credentials: {
     client_email: process.env.GOOGLE_DRIVE_CLIENT_EMAIL,
@@ -17,61 +24,115 @@ const auth = new google.auth.GoogleAuth({
 
 const drive = google.drive({ version: 'v3', auth });
 
-export async function listFilesInFolder(folderId) {
-  console.log('folderId in service:', folderId);
-  const filesListResult = await drive.files.list({
-    q: `'${folderId}' in parents and trashed = false`,
-    fields: 'files(id, name, mimeType, modifiedTime, parents)',
-    pageSize: 1000
-  });
-  console.log('Files retrieved:', filesListResult.data.files);
-  return filesListResult.data.files;
-}
-export async function listAllFilesRecursive(folderId) {
-  console.log('🔍 Fetching all files from Drive (optimized)...');
+logger.info('Google Drive service initialized', { 
+  clientEmail: process.env.GOOGLE_DRIVE_CLIENT_EMAIL 
+});
 
+/**
+ * List all files in a specific folder (non-recursive)
+ * @param {string} folderId - Google Drive folder ID
+ * @returns {Promise<Array>} Array of file objects
+ * @throws {Error} If folderId is invalid or API call fails
+ */
+export async function listFilesInFolder(folderId) {
+  if (!folderId || typeof folderId !== 'string') {
+    throw new Error('folderId is required and must be a string');
+  }
+  
+  if (folderId.trim().length === 0) {
+    throw new Error('folderId cannot be empty');
+  }
+  
+  logger.debug('Listing files in folder', { folderId });
+  
+  try {
+    const filesListResult = await drive.files.list({
+      q: `'${folderId}' in parents and trashed = false`,
+      fields: 'files(id, name, mimeType, modifiedTime, parents)',
+      pageSize: 1000
+    });
+    
+    return filesListResult.data.files;
+  } catch (error) {
+    logger.error('Failed to list files', { folderId, error: error.message });
+    throw new Error(`Failed to list files in folder ${folderId}: ${error.message}`);
+  }
+}
+
+/**
+ *  Recursively list all files in a folder and subfolders (using iterative approach)
+ * @param {string} folderId - Root Google Drive folder ID
+ * @param {number} [maxFolders=10000] - Maximum number of folders to process
+ * @returns {Promise<Array>} Array of file objects with folderPath property
+ * @throws {Error} If folderId is invalid or API call fails
+ */
+export async function listAllFilesIteratively(folderId, maxFolders = 10000) {
+  logger.info('Fetching all files from Drive (optimized)');
+  
   const allFiles = [];
   const folderQueue = [{ id: folderId, path: '' }];
   const processedFolders = new Set();
   let apiCallCount = 0;
 
-  // Process folders iteratively (not recursively) to avoid deep call stacks
-  while (folderQueue.length > 0) {
-    const { id: currentFolderId, path: currentPath } = folderQueue.shift();
-
-    // Skip if already processed (prevent duplicates)
-    // eslint-disable-next-line no-continue
-    if (processedFolders.has(currentFolderId)) continue;
-    processedFolders.add(currentFolderId);
-
-    apiCallCount += 1;
-    const response = await drive.files.list({
-      q: `'${currentFolderId}' in parents and trashed = false`,
-      fields: 'files(id, name, mimeType, parents, modifiedTime)',
-      pageSize: 1000
-    });
-
-    const items = response.data.files || [];
-    // eslint-disable-next-line no-restricted-syntax
-    for (const item of items) {
-      if (item.mimeType === 'application/vnd.google-apps.folder') {
-        // It's a folder - add to queue for processing
-        const subfolderPath = currentPath ? `${currentPath}/${item.name}` : item.name;
-        folderQueue.push({ id: item.id, path: subfolderPath });
-      } else {
-        // It's a file - add with folder path
-        allFiles.push({
-          ...item,
-          folderPath: currentPath
+  try {
+    while (folderQueue.length > 0) {
+      if (processedFolders.size >= maxFolders) {
+        logger.warn('Maximum folder limit reached', { 
+          maxFolders, 
+          filesFound: allFiles.length 
         });
+        break;
+      }
+      
+      const { id: currentFolderId, path: currentPath } = folderQueue.shift();
+      // eslint-disable-next-line no-continue
+      if (processedFolders.has(currentFolderId)) continue;
+      processedFolders.add(currentFolderId);
+
+      apiCallCount += 1;
+      
+      try {
+        const response = await drive.files.list({
+          q: `'${currentFolderId}' in parents and trashed = false`,
+          fields: 'files(id, name, mimeType, parents, modifiedTime)',
+          pageSize: 1000
+        });
+
+        const items = response.data.files || [];
+        // eslint-disable-next-line no-restricted-syntax
+        for (const item of items) {
+          if (item.mimeType === 'application/vnd.google-apps.folder') {
+            const subfolderPath = currentPath ? `${currentPath}/${item.name}` : item.name;
+            folderQueue.push({ id: item.id, path: subfolderPath });
+          } else {
+            allFiles.push({
+              ...item,
+              folderPath: currentPath
+            });
+          }
+        }
+      } catch (error) {
+        logger.error(`Failed to list files in folder ${currentFolderId}:`, error);
+        // Continue with other folders even if one fails
       }
     }
+
+    console.log(`📊 Retrieved ${allFiles.length} files in ${apiCallCount} API call(s)`);
+    return allFiles;
+  } catch (error) {
+    logger.error('Error listing files recursively', { error: error.message });
+    throw error;
   }
-
-  console.log(`📊 Retrieved ${allFiles.length} files in ${apiCallCount} API call(s)`);
-
-  return allFiles;
 }
+
+/**
+ * Download a file from Google Drive
+ * @param {string} fileId - Google Drive file ID
+ * @param {string} destPath - Destination file path
+ * @param {string} mimeType - File MIME type
+ * @returns {Promise<string>} Path to downloaded file
+ * @throws {Error} If download fails
+ */
 export async function downloadFile(fileId, destPath, mimeType) {
   const { createWriteStream } = await import('fs');
   const dest = createWriteStream(destPath);
@@ -82,10 +143,9 @@ export async function downloadFile(fileId, destPath, mimeType) {
     'application/vnd.google-apps.spreadsheet': 'application/pdf', // PDF for Sheets
     'application/vnd.google-apps.presentation': 'application/pdf' // PDF for Slides
   };
-  console.log('googleDocsMimeTypes[mimeType]', googleDocsMimeTypes[mimeType]);
   if (googleDocsMimeTypes[mimeType]) {
     // Export Google Docs as DOCX or PDF
-    console.log('Exporting Google Doc...');
+    logger.info('Exporting Google Doc...');
     const exportMimeType = googleDocsMimeTypes[mimeType];
     await drive.files.export({ fileId, mimeType: exportMimeType }, { responseType: 'stream' }).then(
       (res) =>
@@ -98,7 +158,7 @@ export async function downloadFile(fileId, destPath, mimeType) {
     );
   } else {
     // Download regular files (PDF, DOCX, etc.)
-    console.log('Downloading regular file...');
+    logger.info('Downloading regular file...');
     await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' }).then(
       (res) =>
         new Promise((resolve, reject) => {

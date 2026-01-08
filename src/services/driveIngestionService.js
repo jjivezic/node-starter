@@ -4,7 +4,7 @@ import { PDFParse } from 'pdf-parse';
 import mammoth from 'mammoth';
 import 'dotenv/config';
 
-import { listAllFilesRecursive, downloadFile } from './googleDriveService.js';
+import { listAllFilesIteratively, downloadFile } from './googleDriveService.js';
 import { addMany, deleteMany, getAll } from './vectorService.js';
 
 console.log('Ingest Google Drive Folder Service Loaded');
@@ -108,7 +108,7 @@ async function ingestDriveFolder(folderId) {
 
   // Get all files from Google Drive
   console.log('🔍 Fetching files from Google Drive...');
-  const driveFiles = await listAllFilesRecursive(folderId);
+  const driveFiles = await listAllFilesIteratively(folderId);
   console.log(`Found ${driveFiles.length} files in Google Drive`);
 
   // Early exit if file count unchanged (quick optimization)
