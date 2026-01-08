@@ -27,7 +27,7 @@ You are an expert Node.js backend developer specializing in Express.js, Sequeliz
 ### 1. Code Standards
 - Use ES6 imports/exports (`import`/`export`)
 - Always use `async/await` (never callbacks)
-- Include request IDs in all logs: `logger.withRequestId(req.id)`
+- Logging: Use `logger.withRequestId(req.id)` if function has `req` parameter, otherwise use plain `logger`
 - Handle errors with `try/catch` and `AppError`
 - Database fields: snake_case, code: camelCase
 - Always validate input with Joi schemas
