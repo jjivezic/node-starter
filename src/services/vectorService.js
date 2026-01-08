@@ -78,9 +78,7 @@ export const addMeny = async (documents) => {
     logger.info(`Adding ${documents.length} documents to ChromaDB`);
 
     // Create embeddings for all documents using Gemini
-    const embeddings = await Promise.all(
-      documents.map((doc) => createEmbedding(doc.text))
-    );
+    const embeddings = await Promise.all(documents.map((doc) => createEmbedding(doc.text)));
 
     // Prepare data for ChromaDB
     const ids = documents.map((doc) => doc.id);
@@ -155,9 +153,7 @@ export const search = async (query, nResults = 5, keyword = null, maxDistance = 
         text: results.documents[0][index],
         metadata,
         distance: results.distances[0][index],
-        path: (metadata?.folderPath && metadata?.name)
-          ? `${metadata.folderPath}/${metadata.name}`
-          : 'unknown',
+        path: `${process.env.GOOGLE_DRIVE_FOLDER_ROOT_NAME}/${metadata.folderPath ? `${metadata.folderPath}/${metadata.name}` : metadata.name}`,
         googleLink
       };
     });

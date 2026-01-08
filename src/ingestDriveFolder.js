@@ -13,7 +13,6 @@ console.log('Ingest Google Drive Folder Service Loaded');
 // TEXT EXTRACTION
 // -------------------------
 async function extractText(filePath, mimeType) {
-  console.log('Extracting:1111111111111', filePath, mimeType);
 
   // PDF
   if (mimeType === 'application/pdf') {

@@ -36,7 +36,6 @@ const defineTools = () => {
         required: ['query']
       },
       function: async (params) => {
-        logger.info('Agent calling searchDocuments11111111111:', params);
         const results = await vectorSearch(
           params.query,
           params.nResults || 10,
@@ -49,7 +48,7 @@ const defineTools = () => {
           count: results.length,
           results: results.map((r) => ({
             fileName: r.metadata.name,
-            folderPath: r.metadata.folderPath || 'root',
+            folderPath: r.metadata.folderPath || process.env.GOOGLE_DRIVE_FOLDER_ROOT_NAME,
             fullText: r.text,
             distance: r.distance.toFixed(3),
             path: r.path,

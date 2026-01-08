@@ -15,10 +15,6 @@ const auth = new google.auth.GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/drive']
 });
 
-// const drive = google.drive({ version: "v3", auth });
-// const driveListResult = await drive.files.list({ pageSize: 1 });
-
-// console.log('xxxxxxxxxxx', driveListResult.data);
 const drive = google.drive({ version: 'v3', auth });
 
 export async function listFilesInFolder(folderId) {
