@@ -20,7 +20,6 @@ export const checkHealth = catchAsync(async (req, res) => {
 
 // GET /api/health/detailed - Detailed health with all services
 export const checkDetailedHealth = catchAsync(async (req, res) => {
-  const log = logger.withRequestId(req.id);
   
   // Check database connection
   let dbHealth = { healthy: false, error: null };
@@ -29,7 +28,7 @@ export const checkDetailedHealth = catchAsync(async (req, res) => {
     dbHealth = { healthy: true, connected: true };
   } catch (error) {
     dbHealth = { healthy: false, error: error.message };
-    log.error(`Database health check failed: ${error.message}`);
+    logger.error(`Database health check failed: ${error.message}`);
   }
 
   // Check email service

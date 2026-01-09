@@ -43,7 +43,6 @@ await User.findByPk(id); // Sequelize prevents injection
 **Check for:**
 - [ ] Proper async/await usage (no callbacks)
 - [ ] Error handling with try/catch
-- [ ] Request IDs in all logs: `logger.withRequestId(req.id)`
 - [ ] Consistent naming (snake_case DB, camelCase code)
 - [ ] No code duplication
 - [ ] Proper separation of concerns (controller → manager → model)
@@ -63,12 +62,10 @@ if (!user) {
 }
 return user;
 
-// ❌ BAD - No request ID
-logger.info(`User logged in: ${email}`);
-
-// ✅ GOOD
-const log = logger.withRequestId(req.id);
-log.info(`User logged in: ${email}`);
+// ℹ️ Request ID logging is only needed in middleware (validate.js, errorHandler.js)
+// Controllers and services can use regular logger
+const log = logger.withRequestId(req.id); // Only in middleware
+logger.info(`User logged in: ${email}`); // OK in controllers/services
 ```
 
 ### 3. Performance (Priority: Important)
@@ -192,7 +189,7 @@ router.post('/', validate(schema), catchAsync(async (req, res) => {
 
 ### 7. Logging Standards (Priority: Important)
 **Check for:**
-- [ ] Request IDs used: `logger.withRequestId(req.id)`
+- [ ] Request IDs used in middleware only (validate.js, errorHandler.js)
 - [ ] Appropriate log levels (debug, info, warn, error)
 - [ ] No sensitive data logged
 - [ ] Structured logging (not just strings)
