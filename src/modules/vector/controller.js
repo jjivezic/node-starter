@@ -5,13 +5,13 @@ import { catchAsync } from '../../middleware/errorHandler.js';
 export const addVectorDocuments = catchAsync(async (req, res) => {
   const { documents } = req.body;
 
-  logger.withRequestId(req.id).info('Adding documents to vector DB', {
+  logger.info('Adding documents to vector DB', {
     count: documents.length
   });
 
   const result = await addMany(documents);
 
-  logger.withRequestId(req.id).info('Documents added successfully to vector DB');
+  logger.info('Documents added successfully to vector DB');
 
   res.json({
     success: true,
@@ -23,7 +23,7 @@ export const addVectorDocuments = catchAsync(async (req, res) => {
 export const searchVectorDocuments = catchAsync(async (req, res) => {
   const { query, nResults = 5, keyword, maxDistance } = req.body;
   
-  logger.withRequestId(req.id).info('Searching vector DB', {
+  logger.info('Searching vector DB', {
     query,
     nResults,
     keyword,
@@ -32,7 +32,7 @@ export const searchVectorDocuments = catchAsync(async (req, res) => {
 
   const results = await search(query, nResults, keyword, maxDistance);
 
-  logger.withRequestId(req.id).info('Search completed', {
+  logger.info('Search completed', {
     resultsFound: results.length
   });
 
@@ -50,7 +50,7 @@ export const searchVectorDocuments = catchAsync(async (req, res) => {
 });
 
 export const getDocumentStats = catchAsync(async (req, res) => {
-  logger.withRequestId(req.id).info('Getting vector DB stats');
+  logger.info('Getting vector DB stats');
 
   const stats = await getStats();
 
@@ -64,7 +64,7 @@ export const getDocumentStats = catchAsync(async (req, res) => {
 export const deleteVectorDocuments = catchAsync(async (req, res) => {
   const { ids } = req.body;
 
-  logger.withRequestId(req.id).info('Deleting documents from vector DB', {
+  logger.info('Deleting documents from vector DB', {
     count: ids.length
   });
 
@@ -78,7 +78,7 @@ export const deleteVectorDocuments = catchAsync(async (req, res) => {
 });
 
 export const resetVectorDocuments = catchAsync(async (req, res) => {
-  logger.withRequestId(req.id).info('Resetting vector DB');
+  logger.info('Resetting vector DB');
 
   const result = await reset();
 
@@ -90,7 +90,7 @@ export const resetVectorDocuments = catchAsync(async (req, res) => {
 });
 
 export const getAllVectorDocuments = catchAsync(async (req, res) => {
-  logger.withRequestId(req.id).info('Getting all documents from vector DB');
+  logger.info('Getting all documents from vector DB');
 
   const result = await getAll();
 

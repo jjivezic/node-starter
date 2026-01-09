@@ -7,7 +7,7 @@ import { ERROR_CODES } from '../../config/errorCodes.js';
 export const AIchat = catchAsync(async (req, res) => {
   const { prompt, provider = 'gemini', model, maxTokens = 500, temperature = 0.7 } = req.body;
 
-  logger.withRequestId(req.id).info('Processing AI chat request', {
+  logger.info('Processing AI chat request', {
     promptLength: prompt.length,
     provider,
     model
@@ -42,7 +42,7 @@ export const AIchat = catchAsync(async (req, res) => {
     throw new AppError(`Unsupported provider: ${provider}`, 400, true, ERROR_CODES.BAD_REQUEST);
   }
 
-  logger.withRequestId(req.id).info('AI chat request completed successfully');
+  logger.info('AI chat request completed successfully');
 
   res.json({
     success: true,
@@ -59,7 +59,7 @@ export const AIchat = catchAsync(async (req, res) => {
 export const AIchatWithHistory = catchAsync(async (req, res) => {
   const { messages, provider = 'gemini', model, maxTokens = 500, temperature = 0.7 } = req.body;
 
-  logger.withRequestId(req.id).info('Processing AI chat with history', {
+  logger.info('Processing AI chat with history', {
     messageCount: messages.length,
     provider,
     model
@@ -94,7 +94,7 @@ export const AIchatWithHistory = catchAsync(async (req, res) => {
     throw new AppError(`Unsupported provider: ${provider}`, 400, true, ERROR_CODES.BAD_REQUEST);
   }
 
-  logger.withRequestId(req.id).info('AI chat with history completed successfully');
+  logger.info('AI chat with history completed successfully');
 
   res.json({
     success: true,
