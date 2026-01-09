@@ -15,3 +15,9 @@ google-credentials.json
 !package.json
 !package-lock.json
 !tsconfig.json
+
+# ChromaDB vector database - DO NOT COMMIT
+chroma_data/
+
+# Temporary files
+tmp/
