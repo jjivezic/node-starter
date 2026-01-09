@@ -1,5 +1,14 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import logger from '../config/logger.js';
+import { AppError } from '../middleware/errorHandler.js';
+import { ERROR_CODES } from '../config/errorCodes.js';
+
+// Configuration constants
+const DEFAULT_CHAT_MODEL = 'gemini-2.0-flash-exp';
+const DEFAULT_EMBEDDING_MODEL = 'text-embedding-004';
+const DEFAULT_VISION_MODEL = 'gemini-pro-vision';
+const DEFAULT_MAX_TOKENS = 500;
+const DEFAULT_TEMPERATURE = 0.7;
 
 // Initialize Google AI client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -8,18 +17,25 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
  * Send a simple chat prompt to Gemini
  * @param {string} prompt - The user's prompt
  * @param {Object} options - Additional options
- * @param {string} options.model - Model to use (default: gemini-1.5-flash)
- * @param {number} options.maxTokens - Maximum tokens in response
- * @param {number} options.temperature - Creativity level (0-2)
+ * @param {string} [options.model=DEFAULT_CHAT_MODEL] - Model to use (default: gemini-2.0-flash-exp)
+ * @param {number} [options.maxTokens=DEFAULT_MAX_TOKENS] - Maximum tokens in response (default: 500)
+ * @param {number} [options.temperature=DEFAULT_TEMPERATURE] - Creativity level 0-2 (default: 0.7)
+ * @param {string} [requestId=null] - Request ID for logging
  * @returns {Promise<string>} - The AI response
  */
-export const chat = async (prompt, options = {}) => {
-  const { model = 'gemini-2.0-flash-exp', maxTokens = 500, temperature = 0.7 } = options;
+export const chat = async (prompt, options = {}, requestId = null) => {
+  // Input validation
+  if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+    throw new AppError('Valid prompt is required', 400, true, ERROR_CODES.BAD_REQUEST);
+  }
+
+  const { model = DEFAULT_CHAT_MODEL, maxTokens = DEFAULT_MAX_TOKENS, temperature = DEFAULT_TEMPERATURE } = options;
 
   try {
     logger.info('Sending prompt to Gemini', {
       model,
-      promptLength: prompt.length
+      promptLength: prompt.length,
+      requestId
     });
 
     const genModel = genAI.getGenerativeModel({
@@ -36,13 +52,19 @@ export const chat = async (prompt, options = {}) => {
 
     logger.info('Received response from Gemini', {
       model,
-      responseLength: content.length
+      responseLength: content.length,
+      requestId
     });
 
     return content;
   } catch (error) {
     logger.error('Gemini API error:', error);
-    throw new Error(`Gemini API error: ${error.message}`);
+    throw new AppError(
+      `Gemini API error: ${error.message}`,
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
   }
 };
 
@@ -50,17 +72,27 @@ export const chat = async (prompt, options = {}) => {
  * Send a chat with conversation history
  * @param {Array} messages - Array of message objects {role, content}
  * @param {Object} options - Additional options
- * @param {Array} options.tools - Function/tool definitions for agent
+ * @param {string} [options.model=DEFAULT_CHAT_MODEL] - Model to use (default: gemini-2.0-flash-exp)
+ * @param {number} [options.maxTokens=DEFAULT_MAX_TOKENS] - Maximum tokens in response (default: 500)
+ * @param {number} [options.temperature=DEFAULT_TEMPERATURE] - Creativity level 0-2 (default: 0.7)
+ * @param {Array} [options.tools] - Function/tool definitions for agent (optional)
+ * @param {string} [requestId=null] - Request ID for logging
  * @returns {Promise<Object>} - Response with text and/or tool calls
  */
-export const chatWithHistory = async (messages, options = {}) => {
-  const { model = 'gemini-2.0-flash-exp', maxTokens = 500, temperature = 0.7, tools = null } = options;
+export const chatWithHistory = async (messages, options = {},requestId = null) => {
+  // Input validation
+  if (!Array.isArray(messages) || messages.length === 0) {
+    throw new AppError('Valid messages array is required', 400, true, ERROR_CODES.BAD_REQUEST);
+  }
+
+  const { model = DEFAULT_CHAT_MODEL, maxTokens = DEFAULT_MAX_TOKENS, temperature = DEFAULT_TEMPERATURE, tools = null } = options;
 
   try {
     logger.info('Sending conversation to Gemini', {
       model,
       messageCount: messages.length,
-      hasTools: !!tools
+      hasTools: !!tools,
+      requestId
     });
 
     const modelConfig = {
@@ -90,8 +122,7 @@ export const chatWithHistory = async (messages, options = {}) => {
         }
       };
 
-      // console.log('🔧 Tools being sent to Gemini:', JSON.stringify(modelConfig.tools, null, 2));
-      console.log('⚙️ Tool config:', modelConfig.toolConfig);
+      logger.debug('Tool configuration:', { mode: modelConfig.toolConfig.functionCallingConfig.mode });
     }
 
     const genModel = genAI.getGenerativeModel(modelConfig);
@@ -129,17 +160,18 @@ export const chatWithHistory = async (messages, options = {}) => {
     const result = await geminiChat.sendMessage(lastMessage.content);
     const response = await result.response;
 
-    console.log('📨 Raw Gemini response candidates:', JSON.stringify(response.candidates, null, 2));
+    logger.debug('Gemini response received:', {
+      hasCandidates: !!response.candidates,
+      candidateCount: response.candidates?.length || 0
+    });
 
     // Check for function calls in different ways
     const functionCalls = response.functionCalls?.();
     const candidateParts = response.candidates?.[0]?.content?.parts;
     const hasFunctionCall = candidateParts?.some((part) => part.functionCall);
 
-    console.log('🔧 Function calls check:', {
+    logger.debug('Function call detection:', {
       hasFunctionCallsMethod: typeof response.functionCalls === 'function',
-      functionCallsResult: functionCalls,
-      candidateParts,
       hasFunctionCall
     });
 
@@ -152,18 +184,12 @@ export const chatWithHistory = async (messages, options = {}) => {
           parameters: part.functionCall.args
         }));
 
-      console.log(
-        '✅ Gemini requested tool calls (from candidates):',
-        extractedCalls.map((fc) => fc.name)
-      );
+      logger.debug('Tool calls extracted from candidates:', extractedCalls.map((fc) => fc.name));
       return { toolCalls: extractedCalls };
     }
 
     if (functionCalls && functionCalls.length > 0) {
-      console.log(
-        '✅ Gemini requested tool calls (from method):',
-        functionCalls.map((fc) => fc.name)
-      );
+      logger.debug('Tool calls extracted from method:', functionCalls.map((fc) => fc.name));
       return {
         toolCalls: functionCalls.map((fc) => ({
           name: fc.name,
@@ -176,23 +202,34 @@ export const chatWithHistory = async (messages, options = {}) => {
 
     logger.info('Received response from Gemini', {
       model,
-      responseLength: content.length
+      responseLength: content.length,
+      requestId
     });
 
     return { text: content };
   } catch (error) {
     logger.error('Gemini API error:', error);
-    throw new Error(`Gemini API error: ${error.message}`);
+    throw new AppError(
+      `Gemini API error: ${error.message}`,
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
   }
 };
 
 /**
  * Generate embeddings for text (for RAG/Vector search)
  * @param {string} text - Text to embed
- * @param {string} model - Embedding model (default: text-embedding-004)
+ * @param {string} [model=DEFAULT_EMBEDDING_MODEL] - Embedding model (default: text-embedding-004)
  * @returns {Promise<Array>} - Array of embedding values
  */
-export const createEmbedding = async (text, model = 'text-embedding-004') => {
+export const createEmbedding = async (text, model = DEFAULT_EMBEDDING_MODEL) => {
+  // Input validation
+  if (!text || typeof text !== 'string' || text.trim().length === 0) {
+    throw new AppError('Valid text is required for embedding', 400, true, ERROR_CODES.BAD_REQUEST);
+  }
+
   try {
     logger.info('Creating embedding with Gemini', {
       model,
@@ -210,7 +247,12 @@ export const createEmbedding = async (text, model = 'text-embedding-004') => {
     return embedding.values;
   } catch (error) {
     logger.error('Gemini embedding error:', error);
-    throw new Error(`Gemini embedding error: ${error.message}`);
+    throw new AppError(
+      `Gemini embedding error: ${error.message}`,
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
   }
 };
 
@@ -222,13 +264,21 @@ export const createEmbedding = async (text, model = 'text-embedding-004') => {
  * @returns {Promise<string>} - The AI response
  */
 export const analyzeImage = async (prompt, imageData, mimeType = 'image/jpeg') => {
+  // Input validation
+  if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+    throw new AppError('Valid prompt is required', 400, true, ERROR_CODES.BAD_REQUEST);
+  }
+  if (!imageData) {
+    throw new AppError('Image data is required', 400, true, ERROR_CODES.BAD_REQUEST);
+  }
+
   try {
     logger.info('Analyzing image with Gemini', {
       promptLength: prompt.length,
       mimeType
     });
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
+    const model = genAI.getGenerativeModel({ model: DEFAULT_VISION_MODEL });
 
     const imagePart = {
       inlineData: {
@@ -248,6 +298,11 @@ export const analyzeImage = async (prompt, imageData, mimeType = 'image/jpeg') =
     return content;
   } catch (error) {
     logger.error('Gemini image analysis error:', error);
-    throw new Error(`Gemini image analysis error: ${error.message}`);
+    throw new AppError(
+      `Gemini image analysis error: ${error.message}`,
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
   }
 };

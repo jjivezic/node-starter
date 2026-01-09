@@ -1,6 +1,8 @@
 import { ChromaClient } from 'chromadb';
 import { createEmbedding } from './geminiService.js';
 import logger from '../config/logger.js';
+import { AppError } from '../middleware/errorHandler.js';
+import { ERROR_CODES } from '../config/errorCodes.js';
 
 /**
  * Vector Database Service using ChromaDB
@@ -62,7 +64,12 @@ export const initialize = async () => {
   } catch (error) {
     logger.error('Failed to initialize ChromaDB:', error);
     logger.error('Make sure ChromaDB server is running: chroma run --path ./chroma_data');
-    throw new Error(`ChromaDB initialization failed: ${error.message}`);
+    throw new AppError(
+      `ChromaDB initialization failed: ${error.message}`,
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
   }
 };
 
@@ -102,7 +109,12 @@ export const addMany = async (documents) => {
     };
   } catch (error) {
     logger.error('Failed to add documents:', error);
-    throw new Error(`Failed to add documents: ${error.message}`);
+    throw new AppError(
+      `Failed to add documents: ${error.message}`,
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
   }
 };
 
@@ -114,7 +126,6 @@ export const addMany = async (documents) => {
  * @param {number} maxDistance - Optional max distance threshold (lower = more similar)
  */
 export const search = async (query, nResults = 5, keyword = null, maxDistance = 1) => {
-  console.log('VectorService.search called with query:', query, 'nResults:', nResults, 'keyword:', keyword, 'maxDistance:', maxDistance);
   try {
     if (!collection) {
       await initialize();
@@ -177,7 +188,12 @@ export const search = async (query, nResults = 5, keyword = null, maxDistance = 
     return formattedResults;
   } catch (error) {
     logger.error('Search failed:', error);
-    throw new Error(`Search failed: ${error.message}`);
+    throw new AppError(
+      `Search failed: ${error.message}`,
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
   }
 };
 
@@ -204,7 +220,12 @@ export const deleteMany = async (ids) => {
     };
   } catch (error) {
     logger.error('Failed to delete documents:', error);
-    throw new Error(`Failed to delete documents: ${error.message}`);
+    throw new AppError(
+      `Failed to delete documents: ${error.message}`,
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
   }
 };
 
@@ -232,7 +253,12 @@ export const getAll = async () => {
     };
   } catch (error) {
     logger.error('Failed to get documents:', error);
-    throw new Error(`Failed to get documents: ${error.message}`);
+    throw new AppError(
+      `Failed to get documents: ${error.message}`,
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
   }
 };
 
@@ -251,7 +277,12 @@ export const getStats = async () => {
     };
   } catch (error) {
     logger.error('Failed to get stats:', error);
-    throw new Error(`Failed to get stats: ${error.message}`);
+    throw new AppError(
+      `Failed to get stats: ${error.message}`,
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
   }
 };
 
@@ -282,6 +313,11 @@ export const reset = async () => {
     };
   } catch (error) {
     logger.error('Failed to reset collection:', error);
-    throw new Error(`Failed to reset collection: ${error.message}`);
+    throw new AppError(
+      `Failed to reset collection: ${error.message}`,
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
   }
 };

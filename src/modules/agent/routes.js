@@ -1,5 +1,7 @@
 import express from 'express';
-import * as agentController from './controller.js';
+import { agentExecuteTask } from './controller.js';
+import { validate } from '../../middleware/validate.js';
+import { executeTaskValidation } from './validation.js';
 // import authMiddleware from '../../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -42,6 +44,6 @@ const router = express.Router();
  *       500:
  *         description: Server error
  */
-router.post('/task', agentController.agentExecuteTask);
+router.post('/task', validate(executeTaskValidation), agentExecuteTask);
 
 export default router;

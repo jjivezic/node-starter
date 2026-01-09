@@ -2,6 +2,8 @@ import { chatWithHistory } from './geminiService.js';
 import { search as vectorSearch, getStats as vectorGetStats } from './vectorService.js';
 import emailService from './emailService.js';
 import logger from '../config/logger.js';
+import { AppError } from '../middleware/errorHandler.js';
+import { ERROR_CODES } from '../config/errorCodes.js';
 
 /**
  * AI Agent Service
@@ -119,7 +121,12 @@ const tools = defineTools();
  * @param {number} maxIterations - Maximum tool calls to prevent infinite loops
  */
 export const executeTask = async (userPrompt, maxIterations = 5) => {
-  logger.info('Agent starting task1111111:', userPrompt, tools);
+  // Input validation
+  if (!userPrompt || typeof userPrompt !== 'string' || userPrompt.trim().length === 0) {
+    throw new AppError('Valid prompt is required', 400, true, ERROR_CODES.BAD_REQUEST);
+  }
+
+  logger.info('Agent starting task:', { promptLength: userPrompt.length, maxIterations });
 
   const conversationHistory = [
     {
@@ -164,7 +171,7 @@ ALWAYS use BOTH query and keyword parameters when user asks for specific text!`
 
   while (iterations < maxIterations) {
     iterations += 1;
-    logger.info(`Agent iteration ${iterations}/${maxIterations}`);
+    logger.debug(`Agent iteration ${iterations}/${maxIterations}`);
 
     // After first tool call, allow Gemini to respond without forcing tools
     const useTools = toolCalls.length === 0; // Only force tools on first iteration
@@ -182,12 +189,15 @@ ALWAYS use BOTH query and keyword parameters when user asks for specific text!`
         : null // Don't send tools after first call, let it respond
     });
 
-    console.log('🤖 Gemini response:', JSON.stringify(response, null, 2));
+    logger.debug('Gemini response received:', {
+      hasToolCalls: !!response.toolCalls,
+      hasText: !!response.text
+    });
 
     // Check if agent wants to use a tool
     if (response.toolCalls && response.toolCalls.length > 0) {
-      console.log(
-        `✅ Agent requested ${response.toolCalls.length} tool calls:`,
+      logger.info(
+        `Agent requested ${response.toolCalls.length} tool calls:`,
         response.toolCalls.map((tc) => tc.name)
       );
 
@@ -207,7 +217,7 @@ ALWAYS use BOTH query and keyword parameters when user asks for specific text!`
       for (const toolCall of validToolCalls) {
         const tool = tools.find((t) => t.name === toolCall.name);
 
-        logger.info('Executing tool:', toolCall.name, JSON.stringify(toolCall.parameters));
+        logger.debug('Executing tool:', toolCall.name, JSON.stringify(toolCall.parameters));
 
         try {
           const result = await tool.function(toolCall.parameters);
@@ -218,7 +228,7 @@ ALWAYS use BOTH query and keyword parameters when user asks for specific text!`
             result
           });
 
-          logger.info(`Tool ${toolCall.name} result:`, JSON.stringify(result).substring(0, 200));
+          logger.debug(`Tool ${toolCall.name} result:`, JSON.stringify(result).substring(0, 200));
 
           // Add tool result to conversation
           conversationHistory.push({
@@ -243,8 +253,11 @@ ALWAYS use BOTH query and keyword parameters when user asks for specific text!`
 
     // Agent has text response
     if (response.text) {
-      logger.info('✅ Agent completed task with text response');
-      console.log('📝 Final answer:', response.text);
+      logger.info('Agent completed task successfully', {
+        answerLength: response.text.length,
+        toolCallsUsed: toolCalls.length,
+        iterations
+      });
       return {
         success: true,
         answer: response.text,
@@ -255,20 +268,20 @@ ALWAYS use BOTH query and keyword parameters when user asks for specific text!`
 
     // No tools and no text - unexpected, break loop
     logger.warn('Agent returned neither tools nor text');
-    return {
-      success: false,
-      answer: 'Agent did not provide a response',
-      toolCalls,
-      iterations
-    };
+    throw new AppError(
+      'Agent did not provide a response',
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
   }
 
   // Max iterations reached
   logger.warn('Agent reached max iterations');
-  return {
-    success: false,
-    answer: 'Task too complex, reached maximum tool usage limit',
-    toolCalls,
-    iterations
-  };
+  throw new AppError(
+    'Task too complex, reached maximum tool usage limit',
+    400,
+    true,
+    ERROR_CODES.BAD_REQUEST
+  );
 };

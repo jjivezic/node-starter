@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import { google } from 'googleapis';
 import logger from '../config/logger.js';
+import { AppError } from '../middleware/errorHandler.js';
+import { ERROR_CODES } from '../config/errorCodes.js';
 
 /**
  * Google Drive Service
@@ -8,11 +10,6 @@ import logger from '../config/logger.js';
  * - Lists and downloads files from a folder
  */
 
-// Validate required environment variables
-if (!process.env.GOOGLE_DRIVE_CLIENT_EMAIL || !process.env.GOOGLE_DRIVE_PRIVATE_KEY) {
-  logger.error('Google Drive credentials not configured');
-  throw new Error('GOOGLE_DRIVE_CLIENT_EMAIL and GOOGLE_DRIVE_PRIVATE_KEY are required');
-}
 
 const auth = new google.auth.GoogleAuth({
   credentials: {
@@ -36,11 +33,21 @@ logger.info('Google Drive service initialized', {
  */
 export async function listFilesInFolder(folderId) {
   if (!folderId || typeof folderId !== 'string') {
-    throw new Error('folderId is required and must be a string');
+    throw new AppError(
+      'folderId is required and must be a string',
+      400,
+      true,
+      ERROR_CODES.BAD_REQUEST
+    );
   }
   
   if (folderId.trim().length === 0) {
-    throw new Error('folderId cannot be empty');
+    throw new AppError(
+      'folderId cannot be empty',
+      400,
+      true,
+      ERROR_CODES.BAD_REQUEST
+    );
   }
   
   logger.debug('Listing files in folder', { folderId });
@@ -55,7 +62,12 @@ export async function listFilesInFolder(folderId) {
     return filesListResult.data.files;
   } catch (error) {
     logger.error('Failed to list files', { folderId, error: error.message });
-    throw new Error(`Failed to list files in folder ${folderId}: ${error.message}`);
+    throw new AppError(
+      `Failed to list files in folder ${folderId}: ${error.message}`,
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
   }
 }
 
@@ -117,7 +129,11 @@ export async function listAllFilesIteratively(folderId, maxFolders = 10000) {
       }
     }
 
-    console.log(`📊 Retrieved ${allFiles.length} files in ${apiCallCount} API call(s)`);
+    logger.info('Files retrieved successfully', {
+      filesFound: allFiles.length,
+      apiCalls: apiCallCount,
+      foldersProcessed: processedFolders.size
+    });
     return allFiles;
   } catch (error) {
     logger.error('Error listing files recursively', { error: error.message });

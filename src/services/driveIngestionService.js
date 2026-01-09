@@ -6,8 +6,9 @@ import 'dotenv/config';
 
 import { listAllFilesIteratively, downloadFile } from './googleDriveService.js';
 import { addMany, deleteMany, getAll } from './vectorService.js';
+import logger from '../config/logger.js';
 
-console.log('Ingest Google Drive Folder Service Loaded');
+logger.info('Ingest Google Drive Folder Service Loaded');
 
 // -------------------------
 // CACHE MANAGEMENT
@@ -21,7 +22,7 @@ function loadCache() {
       return JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
     }
   } catch (err) {
-    console.warn('Failed to load cache:', err.message);
+    logger.warn('Failed to load cache:', err.message);
   }
   return { lastSyncTime: null, fileCount: 0 };
 }
@@ -32,7 +33,7 @@ function saveCache(data) {
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
     fs.writeFileSync(CACHE_FILE, JSON.stringify(data, null, 2));
   } catch (err) {
-    console.warn('Failed to save cache:', err.message);
+    logger.warn('Failed to save cache:', err.message);
   }
 }
 
@@ -47,7 +48,7 @@ async function extractText(filePath, mimeType) {
       const result = await parser.getText();
       return result.text;
     } catch (err) {
-      console.error('PDF extract error:', err);
+      logger.error('PDF extract error:', err);
       return '';
     }
   }
@@ -55,11 +56,11 @@ async function extractText(filePath, mimeType) {
   // DOCX (both MS Word and Google Docs exported as DOCX)
   if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || mimeType === 'application/vnd.google-apps.document') {
     try {
-      console.log('Extracting DOCX...****************************');
+      logger.debug('Extracting DOCX from file:', filePath);
       const result = await mammoth.extractRawText({ path: filePath });
       return result.value;
     } catch (err) {
-      console.error('DOCX extract error:', err);
+      logger.error('DOCX extract error:', err);
       return '';
     }
   }
@@ -97,29 +98,29 @@ function getExtension(mimeType, fileName) {
 // -------------------------
 async function ingestDriveFolder(folderId) {
   const syncStartTime = new Date().toISOString();
-  console.log('Folder ID:', folderId);
-  console.log('🔄 Starting smart sync...');
+  logger.info('Folder ID:', folderId);
+  logger.info('🔄 Starting smart sync...');
 
   // Load cache
   const cache = loadCache();
   if (cache.lastSyncTime) {
-    console.log(`📅 Last sync: ${cache.lastSyncTime} (${cache.fileCount} files)`);
+    logger.info(`📅 Last sync: ${cache.lastSyncTime} (${cache.fileCount} files)`);
   }
 
   // Get all files from Google Drive
-  console.log('🔍 Fetching files from Google Drive...');
+  logger.info('🔍 Fetching files from Google Drive...');
   const driveFiles = await listAllFilesIteratively(folderId);
-  console.log(`Found ${driveFiles.length} files in Google Drive`);
+  logger.info(`Found ${driveFiles.length} files in Google Drive`);
 
   // Early exit if file count unchanged (quick optimization)
   if (cache.fileCount === driveFiles.length && cache.lastSyncTime) {
-    console.log('💡 File count unchanged, checking for modifications...');
+    logger.info('💡 File count unchanged, checking for modifications...');
   }
 
   // Get all existing documents from vector DB
-  console.log('🔍 Fetching documents from vector DB...');
+  logger.info('🔍 Fetching documents from vector DB...');
   const existingDocs = await getAll();
-  console.log(`Found ${existingDocs.count} documents in vector DB`);
+  logger.info(`Found ${existingDocs.count} documents in vector DB`);
 
   // Create map of existing documents by ID
   const existingDocsMap = new Map(existingDocs.documents.map((doc) => [doc.id, doc.metadata]));
@@ -130,13 +131,13 @@ async function ingestDriveFolder(folderId) {
   const existingIds = new Set();
 
   // Check each Drive file with progress indicator
-  console.log('🔄 Comparing files...');
+  logger.info('🔄 Comparing files...');
   let checkedCount = 0;
   // eslint-disable-next-line no-restricted-syntax
   for (const file of driveFiles) {
     checkedCount += 1;
     if (checkedCount % 100 === 0 || checkedCount === driveFiles.length) {
-      console.log(`  Progress: ${checkedCount}/${driveFiles.length} files checked`);
+      logger.info(`  Progress: ${checkedCount}/${driveFiles.length} files checked`);
     }
 
     existingIds.add(file.id);
@@ -145,11 +146,11 @@ async function ingestDriveFolder(folderId) {
     if (!existing) {
       // New file
       toAdd.push(file);
-      console.log(`➕ New file: ${file.name}`);
+      logger.debug(`➕ New file: ${file.name}`);
     } else if (existing.modifiedTime !== file.modifiedTime) {
       // File was modified
       toUpdate.push(file);
-      console.log(`🔄 Updated file: ${file.name}`);
+      logger.debug(`🔄 Updated file: ${file.name}`);
     }
     // Removed unchanged logging to reduce noise
   }
@@ -160,15 +161,15 @@ async function ingestDriveFolder(folderId) {
   for (const doc of existingDocs.documents) {
     if (!existingIds.has(doc.id)) {
       toDelete.push(doc.id);
-      console.log(`🗑️  Deleted from Drive: ${doc.metadata.name}`);
+      logger.debug(`🗑️  Deleted from Drive: ${doc.metadata.name}`);
     }
   }
 
-  console.log(`\n📊 Summary: ${toAdd.length} new, ${toUpdate.length} updated, ${toDelete.length} deleted\n`);
+  logger.info(`\n📊 Summary: ${toAdd.length} new, ${toUpdate.length} updated, ${toDelete.length} deleted\n`);
 
   // Early exit if nothing changed
   if (toAdd.length === 0 && toUpdate.length === 0 && toDelete.length === 0) {
-    console.log('✅ Everything is up to date! No changes detected.');
+    logger.info('✅ Everything is up to date! No changes detected.');
     // Update cache timestamp even if no changes
     saveCache({
       lastSyncTime: syncStartTime,
@@ -179,9 +180,9 @@ async function ingestDriveFolder(folderId) {
 
   // Delete removed files from vector DB
   if (toDelete.length > 0) {
-    console.log(`🗑️  Deleting ${toDelete.length} documents from vector DB...`);
+    logger.info(`🗑️  Deleting ${toDelete.length} documents from vector DB...`);
     await deleteMany(toDelete);
-    console.log(`✅ Deleted ${toDelete.length} documents`);
+    logger.info(`✅ Deleted ${toDelete.length} documents`);
   }
 
   const tmpDir = path.join(process.cwd(), 'tmp');
@@ -192,10 +193,10 @@ async function ingestDriveFolder(folderId) {
 
   // Delete old versions of updated files
   if (toUpdate.length > 0) {
-    console.log(`🔄 Removing ${toUpdate.length} old document versions...`);
+    logger.info(`🔄 Removing ${toUpdate.length} old document versions...`);
     const updateIds = toUpdate.map((f) => f.id);
     deleteMany(updateIds);
-    console.log('✅ Removed old versions');
+    logger.info('✅ Removed old versions');
   }
 
   // Process files in batches for better performance and stability
@@ -203,7 +204,7 @@ async function ingestDriveFolder(folderId) {
   let failedCount = 0;
   let skippedCount = 0;
 
-  console.log(`\n🚀 Processing ${filesToProcess.length} files in batches of ${BATCH_SIZE}...\n`);
+  logger.info(`\n🚀 Processing ${filesToProcess.length} files in batches of ${BATCH_SIZE}...\n`);
 
   // eslint-disable-next-line no-restricted-syntax
   for (let i = 0; i < filesToProcess.length; i += BATCH_SIZE) {
@@ -211,7 +212,7 @@ async function ingestDriveFolder(folderId) {
     const batchNum = Math.floor(i / BATCH_SIZE) + 1;
     const totalBatches = Math.ceil(filesToProcess.length / BATCH_SIZE);
 
-    console.log(`📦 Batch ${batchNum}/${totalBatches} (${batch.length} files)`);
+    logger.info(`📦 Batch ${batchNum}/${totalBatches} (${batch.length} files)`);
 
     // eslint-disable-next-line no-restricted-syntax
     for (const file of batch) {
@@ -222,7 +223,7 @@ async function ingestDriveFolder(folderId) {
         await downloadFile(file.id, destPath, file.mimeType);
 
         if (!fs.existsSync(destPath)) {
-          console.warn(`  ⚠️  Missing file after download: ${file.name}`);
+          logger.warn(`  ⚠️  Missing file after download: ${file.name}`);
           failedCount += 1;
           // eslint-disable-next-line no-continue
           continue;
@@ -243,10 +244,10 @@ async function ingestDriveFolder(folderId) {
               }
             }
           ]);
-          console.log(`  ✅ Indexed: ${file.name} (${text.length} chars)`);
+          logger.debug(`  ✅ Indexed: ${file.name} (${text.length} chars)`);
           processedCount += 1;
         } else {
-          console.log(`  ⏭️  Skipped (empty): ${file.name}`);
+          logger.debug(`  ⏭️  Skipped (empty): ${file.name}`);
           skippedCount += 1;
         }
 
@@ -255,14 +256,14 @@ async function ingestDriveFolder(folderId) {
           fs.unlinkSync(destPath);
         }
       } catch (error) {
-        console.error(`  ❌ Failed to process ${file.name}: ${error.message}`);
+        logger.error(`  ❌ Failed to process ${file.name}: ${error.message}`);
         failedCount += 1;
       }
     }
 
     // Progress indicator
     const totalProcessed = processedCount + failedCount + skippedCount;
-    console.log(
+    logger.info(
       `  Progress: ${totalProcessed}/${filesToProcess.length} (${processedCount} indexed, ${skippedCount} skipped, ${failedCount} failed)\n`
     );
   }
@@ -273,11 +274,11 @@ async function ingestDriveFolder(folderId) {
     fileCount: driveFiles.length
   });
 
-  console.log('✅ Smart sync complete!');
-  console.log(`   Processed: ${processedCount}/${filesToProcess.length}`);
-  console.log(`   Skipped: ${skippedCount} (empty files)`);
-  console.log(`   Failed: ${failedCount}`);
-  console.log(`   Total Drive files: ${driveFiles.length}\n`);
+  logger.info('✅ Smart sync complete!');
+  logger.info(`   Processed: ${processedCount}/${filesToProcess.length}`);
+  logger.info(`   Skipped: ${skippedCount} (empty files)`);
+  logger.info(`   Failed: ${failedCount}`);
+  logger.info(`   Total Drive files: ${driveFiles.length}\n`);
 }
 
 // Only run directly if executed as a script (not imported)

@@ -1,153 +1,148 @@
 import { chat as openaiChat, chatWithHistory as openaiChatWithHistory } from '../../services/openaiService.js';
 import { chat as geminiChat, chatWithHistory as geminiChatWithHistory } from '../../services/geminiService.js';
 import logger from '../../config/logger.js';
+import { catchAsync, AppError } from '../../middleware/errorHandler.js';
+import { ERROR_CODES } from '../../config/errorCodes.js';
 
-export const AIchat = async (req, res, next) => {
-  try {
-    const { prompt, provider = 'gemini', model, maxTokens = 500, temperature = 0.7 } = req.body;
+export const AIchat = catchAsync(async (req, res) => {
+  const { prompt, provider = 'gemini', model, maxTokens = 500, temperature = 0.7 } = req.body;
 
-    logger.withRequestId(req.id).info('Processing AI chat request', {
-      promptLength: prompt.length,
+  logger.withRequestId(req.id).info('Processing AI chat request', {
+    promptLength: prompt.length,
+    provider,
+    model
+  });
+
+  let response;
+  let usedModel;
+
+  if (provider === 'gemini') {
+    usedModel = model || 'gemini-2.0-flash-exp';
+    response = await geminiChat(
+      prompt,
+      {
+        model: usedModel,
+        maxTokens,
+        temperature
+      },
+      req.id
+    );
+  } else if (provider === 'openai') {
+    usedModel = model || 'gpt-3.5-turbo';
+    response = await openaiChat(
+      prompt,
+      {
+        model: usedModel,
+        maxTokens,
+        temperature
+      },
+      req.id
+    );
+  } else {
+    throw new AppError(`Unsupported provider: ${provider}`, 400, true, ERROR_CODES.BAD_REQUEST);
+  }
+
+  logger.withRequestId(req.id).info('AI chat request completed successfully');
+
+  res.json({
+    success: true,
+    data: {
+      prompt,
+      response,
       provider,
-      model,
-    });
+      model: usedModel
+    },
+    message: 'AI response generated successfully'
+  });
+});
 
-    let response;
-    let usedModel;
+export const AIchatWithHistory = catchAsync(async (req, res) => {
+  const { messages, provider = 'gemini', model, maxTokens = 500, temperature = 0.7 } = req.body;
 
-    if (provider === 'gemini') {
-      usedModel = model || 'gemini-2.0-flash-exp';
-      response = await geminiChat(prompt, {
+  logger.withRequestId(req.id).info('Processing AI chat with history', {
+    messageCount: messages.length,
+    provider,
+    model
+  });
+
+  let response;
+  let usedModel;
+
+  if (provider === 'gemini') {
+    usedModel = model || 'gemini-2.0-flash-exp';
+    response = await geminiChatWithHistory(
+      messages,
+      {
         model: usedModel,
         maxTokens,
-        temperature,
-      });
-    } else if (provider === 'openai') {
-      usedModel = model || 'gpt-3.5-turbo';
-      response = await openaiChat(prompt, {
-        model: usedModel,
-        maxTokens,
-        temperature,
-      });
-    } else {
-      throw new Error(`Unsupported provider: ${provider}`);
-    }
-
-    logger.withRequestId(req.id).info('AI chat request completed successfully');
-
-    res.json({
-      success: true,
-      data: {
-        prompt,
-        response,
-        provider,
-        model: usedModel,
+        temperature
       },
-      message: 'AI response generated successfully',
-    });
-  } catch (error) {
-    logger.withRequestId(req.id).error('AI chat request failed:', error);
-    next(error);
+      req.id
+    );
+  } else if (provider === 'openai') {
+    usedModel = model || 'gpt-3.5-turbo';
+    response = await openaiChatWithHistory(
+      messages,
+      {
+        model: usedModel,
+        maxTokens,
+        temperature
+      },
+      req.id
+    );
+  } else {
+    throw new AppError(`Unsupported provider: ${provider}`, 400, true, ERROR_CODES.BAD_REQUEST);
   }
-};
 
-export const AIchatWithHistory = async (req, res, next) => {
-  try {
-    const { messages, provider = 'gemini', model, maxTokens = 500, temperature = 0.7 } = req.body;
+  logger.withRequestId(req.id).info('AI chat with history completed successfully');
 
-    logger.withRequestId(req.id).info('Processing AI chat with history', {
-      messageCount: messages.length,
+  res.json({
+    success: true,
+    data: {
+      messages,
+      response,
       provider,
-      model,
-    });
+      model: usedModel
+    },
+    message: 'AI response generated successfully'
+  });
+});
 
-    let response;
-    let usedModel;
-
-    if (provider === 'gemini') {
-      usedModel = model || 'gemini-2.0-flash-exp';
-      response = await geminiChatWithHistory(messages, {
-        model: usedModel,
-        maxTokens,
-        temperature,
-      });
-    } else if (provider === 'openai') {
-      usedModel = model || 'gpt-3.5-turbo';
-      response = await openaiChatWithHistory(messages, {
-        model: usedModel,
-        maxTokens,
-        temperature,
-      });
-    } else {
-      throw new Error(`Unsupported provider: ${provider}`);
+export const getExamples = catchAsync(async (req, res) => {
+  const examples = [
+    {
+      category: 'Creative Writing',
+      prompts: [
+        'Write a short story about a time traveler',
+        'Create a poem about nature',
+        'Generate a creative product description for a smart watch'
+      ]
+    },
+    {
+      category: 'Code Assistance',
+      prompts: ['Explain what a closure is in JavaScript', 'Write a function to reverse a string in Python', 'How do I use async/await in Node.js?']
+    },
+    {
+      category: 'General Knowledge',
+      prompts: [
+        'Explain quantum computing in simple terms',
+        'What are the main differences between React and Vue?',
+        'Summarize the history of the Internet'
+      ]
+    },
+    {
+      category: 'Problem Solving',
+      prompts: [
+        'How can I improve my time management?',
+        'What are best practices for API design?',
+        'Give me tips for learning a new programming language'
+      ]
     }
+  ];
 
-    logger
-      .withRequestId(req.id)
-      .info('AI chat with history completed successfully');
-
-    res.json({
-      success: true,
-      data: {
-        messages,
-        response,
-        provider,
-        model: usedModel,
-      },
-      message: 'AI response generated successfully',
-    });
-  } catch (error) {
-    logger
-      .withRequestId(req.id)
-      .error('AI chat with history request failed:', error);
-    next(error);
-  }
-};
-
-export const getExamples = async (req, res, next) => {
-  try {
-    const examples = [
-      {
-        category: 'Creative Writing',
-        prompts: [
-          'Write a short story about a time traveler',
-          'Create a poem about nature',
-          'Generate a creative product description for a smart watch',
-        ],
-      },
-      {
-        category: 'Code Assistance',
-        prompts: [
-          'Explain what a closure is in JavaScript',
-          'Write a function to reverse a string in Python',
-          'How do I use async/await in Node.js?',
-        ],
-      },
-      {
-        category: 'General Knowledge',
-        prompts: [
-          'Explain quantum computing in simple terms',
-          'What are the main differences between React and Vue?',
-          'Summarize the history of the Internet',
-        ],
-      },
-      {
-        category: 'Problem Solving',
-        prompts: [
-          'How can I improve my time management?',
-          'What are best practices for API design?',
-          'Give me tips for learning a new programming language',
-        ],
-      },
-    ];
-
-    res.json({
-      success: true,
-      data: examples,
-      message: 'Example prompts retrieved successfully',
-    });
-  } catch (error) {
-    logger.withRequestId(req.id).error('Failed to get examples:', error);
-    next(error);
-  }
-};
+  res.json({
+    success: true,
+    data: examples,
+    message: 'Example prompts retrieved successfully'
+  });
+});
