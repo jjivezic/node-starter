@@ -97,8 +97,7 @@ class EmailService {
     return this.transporter;
   }
 
-  async sendEmail({ to, subject, text, html, requestId = null }) {
-    const log = requestId ? logger.withRequestId(requestId) : logger;
+  async sendEmail({ to, subject, text, html }) {
     
     try {
       const transporter = await this.getTransport();
@@ -120,7 +119,7 @@ class EmailService {
       // Update rate limit tracker
       this.emailQueue.set(to, Date.now());
       
-      log.info(`Email sent to ${to} - Subject: "${subject}" - MessageID: ${info.messageId}`);
+      logger.info(`Email sent to ${to} - Subject: "${subject}" - MessageID: ${info.messageId}`);
       return { success: true, messageId: info.messageId };
     } catch (error) {
       // Update metrics
@@ -131,7 +130,7 @@ class EmailService {
         recipient: to
       };
       
-      log.error(`Email sending failed to ${to} - Subject: "${subject}" - Error: ${error.message}`);
+      logger.error(`Email sending failed to ${to} - Subject: "${subject}" - Error: ${error.message}`);
       throw error;
     }
   }

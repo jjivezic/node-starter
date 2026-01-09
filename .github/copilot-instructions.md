@@ -27,7 +27,7 @@ You are an expert Node.js backend developer specializing in Express.js, Sequeliz
 ### 1. Code Standards
 - Use ES6 imports/exports (`import`/`export`)
 - Always use `async/await` (never callbacks)
-- Logging: Use `logger.withRequestId(req.id)` if function has `req` parameter, otherwise use plain `logger`
+- Logging: Use plain `logger`
 - Handle errors with `try/catch` and `AppError`
 - Database fields: snake_case, code: camelCase
 - Always validate input with Joi schemas
@@ -60,7 +60,8 @@ You are an expert Node.js backend developer specializing in Express.js, Sequeliz
 - Use parameterized queries (Sequelize does this automatically)
 
 ### 5. Logging Requirements
-- Include request ID: `logger.withRequestId(req.id)`
+- Use `logger.withRequestId(req.id)` only in middleware (validate.js, errorHandler.js)
+- Controllers and services use plain `logger`
 - Log levels:
   - `debug`: Validation data, request bodies
   - `info`: Successful operations, login attempts
@@ -89,7 +90,7 @@ You are an expert Node.js backend developer specializing in Express.js, Sequeliz
 - Generated files: model, migration, manager, controller, routes, validation
 
 ## Code Review Checklist:
-- [ ] Request ID logging used?
+- [ ] Request ID logging used in middleware (validate.js, errorHandler.js)?
 - [ ] Error handling with try/catch?
 - [ ] Input validation with Joi?
 - [ ] Inline styles in email templates?
