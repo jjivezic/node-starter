@@ -26,6 +26,31 @@ const jobs = [];
  * @returns {Object} - Cron job instance
  */
 export const registerJob = (name, schedule, task, options = {}) => {
+  // Validate name
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    throw new Error('Job name is required and must be a non-empty string');
+  }
+
+  // Validate schedule
+  if (!schedule || typeof schedule !== 'string') {
+    throw new Error('Schedule is required and must be a valid cron expression');
+  }
+
+  // Validate cron expression
+  if (!cron.validate(schedule)) {
+    throw new Error(`Invalid cron expression: ${schedule}`);
+  }
+
+  // Validate task
+  if (!task || typeof task !== 'function') {
+    throw new Error('Task is required and must be a function');
+  }
+
+  // Check for duplicate job names
+  if (jobs.find(j => j.name === name)) {
+    throw new Error(`Job with name "${name}" already exists`);
+  }
+
   try {
     const job = cron.schedule(schedule, async () => {
       logger.info(`[CRON] Starting job: ${name}`);

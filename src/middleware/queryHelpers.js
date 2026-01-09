@@ -39,7 +39,7 @@ export const sort = (allowedFields = ['created_at'], fieldMapping = {}) => {
     if (fieldMapping[sortBy]) {
       sortBy = fieldMapping[sortBy];
     }
-console.log('Allowed sort fields:', allowedFields);
+
     // Validate sortBy field
     if (!allowedFields.includes(sortBy)) {
       return res.status(400).json({

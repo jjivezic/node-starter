@@ -97,7 +97,7 @@ class EmailService {
     return this.transporter;
   }
 
-  async sendEmail({ to, subject, text, html, requestId = null, skipRateLimit = false }) {
+  async sendEmail({ to, subject, text, html, requestId = null }) {
     const log = requestId ? logger.withRequestId(requestId) : logger;
     
     try {
