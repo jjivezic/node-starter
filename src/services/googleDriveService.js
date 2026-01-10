@@ -16,10 +16,14 @@ const auth = new google.auth.GoogleAuth({
     client_email: process.env.GOOGLE_DRIVE_CLIENT_EMAIL,
     private_key: process.env.GOOGLE_DRIVE_PRIVATE_KEY
   },
-  scopes: ['https://www.googleapis.com/auth/drive']
+  scopes: [
+    'https://www.googleapis.com/auth/drive',
+    'https://www.googleapis.com/auth/spreadsheets.readonly'
+  ]
 });
 
 const drive = google.drive({ version: 'v3', auth });
+const sheets = google.sheets({ version: 'v4', auth });
 
 logger.info('Google Drive service initialized', { 
   clientEmail: process.env.GOOGLE_DRIVE_CLIENT_EMAIL 
@@ -156,34 +160,107 @@ export async function downloadFile(fileId, destPath, mimeType) {
   // Google Docs mimeTypes
   const googleDocsMimeTypes = {
     'application/vnd.google-apps.document': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
-    'application/vnd.google-apps.spreadsheet': 'application/pdf', // PDF for Sheets
+    'application/vnd.google-apps.spreadsheet': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // XLSX for Sheets
     'application/vnd.google-apps.presentation': 'application/pdf' // PDF for Slides
   };
+  
   if (googleDocsMimeTypes[mimeType]) {
     // Export Google Docs as DOCX or PDF
-    logger.info('Exporting Google Doc...');
     const exportMimeType = googleDocsMimeTypes[mimeType];
+    logger.debug(`Exporting Google Doc (${mimeType}) as ${exportMimeType}`);
+    
     await drive.files.export({ fileId, mimeType: exportMimeType }, { responseType: 'stream' }).then(
       (res) =>
         new Promise((resolve, reject) => {
+          let bytesWritten = 0;
           res.data
-            .on('end', () => resolve(destPath))
-            .on('error', (err) => reject(err))
+            .on('data', (chunk) => {
+              bytesWritten += chunk.length;
+            })
+            .on('end', () => {
+              logger.debug(`Export complete: ${bytesWritten} bytes written to ${destPath}`);
+              resolve(destPath);
+            })
+            .on('error', (err) => {
+              logger.error(`Export stream error: ${err.message}`);
+              reject(err);
+            })
             .pipe(dest);
         })
     );
   } else {
     // Download regular files (PDF, DOCX, etc.)
-    logger.info('Downloading regular file...');
+    logger.debug(`Downloading regular file (${mimeType})`);
+    
     await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' }).then(
       (res) =>
         new Promise((resolve, reject) => {
+          let bytesWritten = 0;
           res.data
-            .on('end', () => resolve(destPath))
-            .on('error', (err) => reject(err))
+            .on('data', (chunk) => {
+              bytesWritten += chunk.length;
+            })
+            .on('end', () => {
+              logger.debug(`Download complete: ${bytesWritten} bytes written to ${destPath}`);
+              resolve(destPath);
+            })
+            .on('error', (err) => {
+              logger.error(`Download stream error: ${err.message}`);
+              reject(err);
+            })
             .pipe(dest);
         })
     );
   }
+  
   return destPath;
+}
+
+/**
+ * Read Google Sheets content directly using Sheets API
+ * More reliable than exporting to XLSX
+ * @param {string} spreadsheetId - Google Sheets file ID
+ * @returns {Promise<string>} Text content from all sheets
+ */
+export async function readGoogleSheet(spreadsheetId) {
+  try {
+    logger.debug(`Reading Google Sheet directly: ${spreadsheetId}`);
+    
+    // Get spreadsheet metadata to find all sheet names
+    const metadata = await sheets.spreadsheets.get({
+      spreadsheetId,
+      fields: 'sheets.properties.title'
+    });
+    
+    const sheetNames = metadata.data.sheets.map(sheet => sheet.properties.title);
+    logger.debug(`Found ${sheetNames.length} sheets: ${sheetNames.join(', ')}`);
+    
+    let allText = '';
+    
+    // Read each sheet
+    for (const sheetName of sheetNames) {
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: sheetName
+      });
+      
+      const values = response.data.values || [];
+      if (values.length > 0) {
+        allText += `\n[Sheet: ${sheetName}]\n`;
+        values.forEach(row => {
+          // Join cells with tabs, filter out empty cells
+          const rowText = row.filter(cell => cell).join('\t');
+          if (rowText.trim()) {
+            allText += rowText + '\n';
+          }
+        });
+      }
+    }
+    
+    logger.debug(`Extracted ${allText.length} characters from Google Sheet`);
+    return allText.trim();
+  } catch (error) {
+    logger.error(`Failed to read Google Sheet ${spreadsheetId}: ${error.message}`);
+    throw error;
+  }
 }

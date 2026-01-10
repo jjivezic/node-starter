@@ -160,9 +160,17 @@ export const chatWithHistory = async (messages, options = {},requestId = null) =
     const result = await geminiChat.sendMessage(lastMessage.content);
     const response = await result.response;
 
-    logger.debug('Gemini response received:', {
+    console.log('=== GEMINI FULL RESPONSE ===');
+    console.log(JSON.stringify(response.candidates?.[0], null, 2));
+    console.log('=== END RESPONSE ===');
+
+    logger.debug('Gemini raw response:', {
       hasCandidates: !!response.candidates,
-      candidateCount: response.candidates?.length || 0
+      candidateCount: response.candidates?.length || 0,
+      firstCandidate: response.candidates?.[0] ? {
+        role: response.candidates[0].content?.role,
+        partsCount: response.candidates[0].content?.parts?.length
+      } : null
     });
 
     // Check for function calls in different ways
@@ -172,7 +180,8 @@ export const chatWithHistory = async (messages, options = {},requestId = null) =
 
     logger.debug('Function call detection:', {
       hasFunctionCallsMethod: typeof response.functionCalls === 'function',
-      hasFunctionCall
+      hasFunctionCall,
+      partsCount: candidateParts?.length || 0
     });
 
     // Try to extract function calls from candidates
@@ -184,12 +193,18 @@ export const chatWithHistory = async (messages, options = {},requestId = null) =
           parameters: part.functionCall.args
         }));
 
-      logger.debug('Tool calls extracted from candidates:', extractedCalls.map((fc) => fc.name));
+      logger.debug('Tool calls extracted from candidates:', {
+        count: extractedCalls.length,
+        calls: extractedCalls.map((fc) => fc.name)
+      });
       return { toolCalls: extractedCalls };
     }
 
     if (functionCalls && functionCalls.length > 0) {
-      logger.debug('Tool calls extracted from method:', functionCalls.map((fc) => fc.name));
+      logger.debug('Tool calls extracted from method:', {
+        count: functionCalls.length,
+        calls: functionCalls.map((fc) => fc.name)
+      });
       return {
         toolCalls: functionCalls.map((fc) => ({
           name: fc.name,

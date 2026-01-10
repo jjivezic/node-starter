@@ -64,12 +64,7 @@ export const initialize = async () => {
   } catch (error) {
     logger.error('Failed to initialize ChromaDB:', error);
     logger.error('Make sure ChromaDB server is running: chroma run --path ./chroma_data');
-    throw new AppError(
-      `ChromaDB initialization failed: ${error.message}`,
-      500,
-      true,
-      ERROR_CODES.INTERNAL_ERROR
-    );
+    throw new AppError(`ChromaDB initialization failed: ${error.message}`, 500, true, ERROR_CODES.INTERNAL_ERROR);
   }
 };
 
@@ -109,12 +104,7 @@ export const addMany = async (documents) => {
     };
   } catch (error) {
     logger.error('Failed to add documents:', error);
-    throw new AppError(
-      `Failed to add documents: ${error.message}`,
-      500,
-      true,
-      ERROR_CODES.INTERNAL_ERROR
-    );
+    throw new AppError(`Failed to add documents: ${error.message}`, 500, true, ERROR_CODES.INTERNAL_ERROR);
   }
 };
 
@@ -145,35 +135,39 @@ export const search = async (query, nResults = 5, keyword = null, maxDistance = 
     // Format results
     let formattedResults = results.ids[0].map((id, index) => {
       const metadata = results.metadatas[0][index];
-      const mimeType = metadata?.mimeType || '';
-
-      // Generate Google Drive/Docs link based on mimeType
-      let googleLink = '';
-      if (mimeType === 'application/vnd.google-apps.document') {
-        googleLink = `https://docs.google.com/document/d/${id}`;
-      } else if (mimeType === 'application/vnd.google-apps.spreadsheet') {
-        googleLink = `https://docs.google.com/spreadsheets/d/${id}`;
-      } else if (mimeType === 'application/vnd.google-apps.presentation') {
-        googleLink = `https://docs.google.com/presentation/d/${id}`;
-      } else {
-        googleLink = `https://drive.google.com/file/d/${id}`;
-      }
 
       return {
         id,
         text: results.documents[0][index],
         metadata,
         distance: results.distances[0][index],
-        path: `${process.env.GOOGLE_DRIVE_FOLDER_ROOT_NAME}/${metadata.folderPath ? `${metadata.folderPath}/${metadata.name}` : metadata.name}`,
-        googleLink
+        path: `${process.env.GOOGLE_DRIVE_FOLDER_ROOT_NAME}/${metadata.folderPath ? `${metadata.folderPath}/${metadata.name}` : metadata.name}${metadata.extension || ''}`,
+        googleLink: metadata.googleLink || `https://drive.google.com/file/d/${id}` // Use stored link or fallback
       };
     });
 
     // Filter by keyword if provided (case-insensitive)
     if (keyword) {
       const keywordLower = keyword.toLowerCase();
-      formattedResults = formattedResults.filter((doc) => doc.text.toLowerCase().includes(keywordLower));
-      logger.info(`After keyword filter "${keyword}": ${formattedResults.length} results`);
+      
+      // Filter and count keyword occurrences
+      formattedResults = formattedResults
+        .filter((doc) => doc.text.toLowerCase().includes(keywordLower))
+        .map((doc) => {
+          // Count how many times keyword appears
+          const text = doc.text.toLowerCase();
+          const count = (text.match(new RegExp(keywordLower, 'g')) || []).length;
+          return { ...doc, keywordCount: count };
+        })
+        // Sort by keyword count (descending), then by distance (ascending)
+        .sort((a, b) => {
+          if (b.keywordCount !== a.keywordCount) {
+            return b.keywordCount - a.keywordCount; // More keywords = better
+          }
+          return a.distance - b.distance; // Lower distance = better
+        });
+      
+      logger.info(`After keyword filter "${keyword}": ${formattedResults.length} results (sorted by relevance)`);
     }
 
     // Filter by distance threshold if provided
@@ -188,12 +182,7 @@ export const search = async (query, nResults = 5, keyword = null, maxDistance = 
     return formattedResults;
   } catch (error) {
     logger.error('Search failed:', error);
-    throw new AppError(
-      `Search failed: ${error.message}`,
-      500,
-      true,
-      ERROR_CODES.INTERNAL_ERROR
-    );
+    throw new AppError(`Search failed: ${error.message}`, 500, true, ERROR_CODES.INTERNAL_ERROR);
   }
 };
 
@@ -220,12 +209,7 @@ export const deleteMany = async (ids) => {
     };
   } catch (error) {
     logger.error('Failed to delete documents:', error);
-    throw new AppError(
-      `Failed to delete documents: ${error.message}`,
-      500,
-      true,
-      ERROR_CODES.INTERNAL_ERROR
-    );
+    throw new AppError(`Failed to delete documents: ${error.message}`, 500, true, ERROR_CODES.INTERNAL_ERROR);
   }
 };
 
@@ -253,12 +237,7 @@ export const getAll = async () => {
     };
   } catch (error) {
     logger.error('Failed to get documents:', error);
-    throw new AppError(
-      `Failed to get documents: ${error.message}`,
-      500,
-      true,
-      ERROR_CODES.INTERNAL_ERROR
-    );
+    throw new AppError(`Failed to get documents: ${error.message}`, 500, true, ERROR_CODES.INTERNAL_ERROR);
   }
 };
 
@@ -277,12 +256,7 @@ export const getStats = async () => {
     };
   } catch (error) {
     logger.error('Failed to get stats:', error);
-    throw new AppError(
-      `Failed to get stats: ${error.message}`,
-      500,
-      true,
-      ERROR_CODES.INTERNAL_ERROR
-    );
+    throw new AppError(`Failed to get stats: ${error.message}`, 500, true, ERROR_CODES.INTERNAL_ERROR);
   }
 };
 
@@ -313,11 +287,6 @@ export const reset = async () => {
     };
   } catch (error) {
     logger.error('Failed to reset collection:', error);
-    throw new AppError(
-      `Failed to reset collection: ${error.message}`,
-      500,
-      true,
-      ERROR_CODES.INTERNAL_ERROR
-    );
+    throw new AppError(`Failed to reset collection: ${error.message}`, 500, true, ERROR_CODES.INTERNAL_ERROR);
   }
 };

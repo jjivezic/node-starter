@@ -38,6 +38,12 @@ const defineTools = () => {
         required: ['query']
       },
       function: async (params) => {
+        console.log('=== SEARCH PARAMS ===');
+        console.log('Query:', params.query);
+        console.log('Keyword:', params.keyword);
+        console.log('nResults:', params.nResults);
+        console.log('=== END PARAMS ===');
+        
         const results = await vectorSearch(
           params.query,
           params.nResults || 10,
@@ -49,12 +55,12 @@ const defineTools = () => {
           success: true,
           count: results.length,
           results: results.map((r) => ({
+            googleLink: r.googleLink, // PUT FIRST!
             fileName: r.metadata.name,
             folderPath: r.metadata.folderPath || process.env.GOOGLE_DRIVE_FOLDER_ROOT_NAME,
-            fullText: r.text,
-            distance: r.distance.toFixed(3),
             path: r.path,
-            googleLink: r.googleLink // Direct link to Google Drive/Docs
+            // textPreview: r.text.substring(0, 200) + '...', // Shortened text
+            distance: r.distance.toFixed(3)
           }))
         };
       }
@@ -131,34 +137,38 @@ export const executeTask = async (userPrompt, maxIterations = 5) => {
   const conversationHistory = [
     {
       role: 'system',
-      content: `You are an intelligent AI agent with access to tools. 
+      content: `Ti si AI agent koji pretražuje INTERNE dokumente iz ChromaDB baze podataka.
 
-IMPORTANT: You MUST use the searchDocuments tool to answer questions about documents.
+VAŽNO: TI IMAŠ PRISTUP DOKUMENTIMA! Ne tražiš na internetu, već u lokalnoj bazi dokumenata.
 
-Your job is to:
-1. When user asks about documents or content, ALWAYS call searchDocuments tool first
-2. Search the knowledge base (Google Drive files) using searchDocuments
-3. Use the results to provide accurate answers
-4. Cite which document you found information in
+Kada korisnik pita "gde se spominje XYZ" ili "u kom fajlu je XYZ":
+1. Koristi searchDocuments alat da pretražiš BAZU dokumenata
+2. NIKADA ne kaži "nemam pristup" ili "ne mogu pristupiti internetu"
+3. Ako alat vrati prazne rezultate, reci: "Nisam pronašao dokument koji sadrži taj tekst u bazi."
 
-Available tools:
-- searchDocuments: Search for documents. Use BOTH parameters:
-  * query: Describe what you're looking for (e.g., "documents about contracts")
-  * keyword: Exact text to find (e.g., "xyz", "jelena", "contract expired")
-- sendEmail: Send emails when requested
-- getDocumentStats: Get database statistics
+KRITIČNO PRAVILO: UVEK moraš uključiti googleLink URL u svaki odgovor o dokumentima!
 
-IMPORTANT EXAMPLES:
-User: "Find document with xyz text"
-You should call: searchDocuments(query: "document with xyz", keyword: "xyz")
+Kada pronađeš dokument, odgovori TAČNO u ovom formatu:
 
-User: "Where is text 'jelena' mentioned?"
-You should call: searchDocuments(query: "jelena", keyword: "jelena")
+Pronašao sam u dokumentu:
+📄 **[fileName]**
+📂 Putanja: [folderPath]
+🔗 Link: [googleLink URL]
 
-User: "Find contract that expired"
-You should call: searchDocuments(query: "expired contract", keyword: "expired")
+Alati koje IMAŠ:
+- searchDocuments: Pretražuje ChromaDB bazu dokumenata (ne internet!)
+- sendEmail: Slanje emaila
+- getDocumentStats: Statistika o bazi dokumenata
 
-ALWAYS use BOTH query and keyword parameters when user asks for specific text!`
+Primer DOBROG odgovora:
+Korisnik: "Gde se spominje Jelena?"
+Ti: "Pronašao sam u dokumentu:
+📄 **Nested doc 2**
+📂 Putanja: jelena subfolder
+🔗 Link: https://docs.google.com/document/d/abc123"
+
+Primer LOŠEG odgovora (NIKADA ovako):
+"Žao mi je, ne mogu pristupiti internetu..." ❌`
     },
     {
       role: 'user',
@@ -228,6 +238,10 @@ ALWAYS use BOTH query and keyword parameters when user asks for specific text!`
             result
           });
 
+          console.log('=== TOOL RESULT BEING SENT TO GEMINI ===');
+          console.log(JSON.stringify(result, null, 2));
+          console.log('=== END TOOL RESULT ===');
+
           logger.debug(`Tool ${toolCall.name} result:`, JSON.stringify(result).substring(0, 200));
 
           // Add tool result to conversation
@@ -258,9 +272,39 @@ ALWAYS use BOTH query and keyword parameters when user asks for specific text!`
         toolCallsUsed: toolCalls.length,
         iterations
       });
+
+      // Extract googleLinks from search results (if any)
+      const searchResults = toolCalls
+        .filter((tc) => tc.tool === 'searchDocuments')
+        .flatMap((tc) => tc.result?.results || []);
+
+      let finalAnswer = '';
+
+      // Format search results - always use our formatting for consistency
+      if (searchResults.length > 0) {
+        // Build formatted response
+        finalAnswer = `Pronašao sam ${searchResults.length} ${searchResults.length === 1 ? 'dokument' : 'dokumenata'}:\n\n`;
+        
+        searchResults.forEach((result, index) => {
+          // Extract extension from path
+          const extension = result.path ? result.path.split('.').pop() : '';
+          const fileNameWithExt = extension ? `${result.fileName}.${extension}` : result.fileName;
+          
+          finalAnswer += `${index + 1}. 📂 **${result.folderPath}**\n`;
+          finalAnswer += `   📄 ${fileNameWithExt}\n`;
+          if (result.googleLink) {
+            finalAnswer += `   🔗 [Otvori dokument](${result.googleLink})\n`;
+          }
+          finalAnswer += '\n';
+        });
+      } else {
+        // No search results - use Gemini's text response
+        finalAnswer = response.text;
+      }
+
       return {
         success: true,
-        answer: response.text,
+        answer: finalAnswer,
         toolCalls,
         iterations
       };

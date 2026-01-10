@@ -2,9 +2,10 @@ import path from 'path';
 import fs from 'fs';
 import { PDFParse } from 'pdf-parse';
 import mammoth from 'mammoth';
+import xlsx from 'xlsx';
 import 'dotenv/config';
 
-import { listAllFilesIteratively, downloadFile } from './googleDriveService.js';
+import { listAllFilesIteratively, downloadFile, readGoogleSheet } from './googleDriveService.js';
 import { addMany, deleteMany, getAll } from './vectorService.js';
 import logger from '../config/logger.js';
 
@@ -40,7 +41,7 @@ function saveCache(data) {
 // -------------------------
 // TEXT EXTRACTION
 // -------------------------
-async function extractText(filePath, mimeType) {
+async function extractText(filePath, mimeType, fileId = null) {
   // PDF
   if (mimeType === 'application/pdf') {
     try {
@@ -53,14 +54,100 @@ async function extractText(filePath, mimeType) {
     }
   }
 
+  // Google Sheets - use Sheets API directly (more reliable than XLSX export)
+  if (mimeType === 'application/vnd.google-apps.spreadsheet') {
+    try {
+      if (!fileId) {
+        logger.error('Google Sheets requires fileId for direct API access');
+        return '';
+      }
+      logger.debug('Using Google Sheets API for:', fileId);
+      const text = await readGoogleSheet(fileId);
+      return text;
+    } catch (err) {
+      logger.warn('Google Sheets API not available:', err.message);
+      if (err.message.includes('has not been used') || err.message.includes('is disabled')) {
+        logger.info('💡 Enable Google Sheets API: https://console.developers.google.com/apis/api/sheets.googleapis.com');
+      }
+      // Fallback to XLSX export attempt (will use filePath if provided)
+      logger.debug('⚠️  Falling back to XLSX export (may be unreliable)...');
+      if (!filePath) {
+        logger.error('No filePath provided for XLSX fallback');
+        return '';
+      }
+      // Continue to XLSX processing below
+    }
+  }
+
+  // XLSX (MS Excel files)
+  if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+    try {
+      logger.debug('Extracting XLSX from file:', filePath);
+      
+      // Check file size and existence
+      const stats = fs.statSync(filePath);
+      logger.debug(`XLSX file size: ${stats.size} bytes`);
+      
+      if (stats.size === 0) {
+        logger.warn('XLSX file is empty (0 bytes)');
+        return '';
+      }
+      
+      if (stats.size < 500) {
+        logger.warn(`XLSX file suspiciously small (${stats.size} bytes), may be corrupted`);
+      }
+      
+      const workbook = xlsx.readFile(filePath, { cellDates: true });
+      let text = '';
+      workbook.SheetNames.forEach((sheetName) => {
+        const sheet = workbook.Sheets[sheetName];
+        const sheetText = xlsx.utils.sheet_to_txt(sheet, { blankrows: false });
+        text += `\n[Sheet: ${sheetName}]\n${sheetText}`;
+      });
+      logger.debug(`XLSX extracted ${text.length} characters from ${workbook.SheetNames.length} sheets`);
+      return text.trim();
+    } catch (err) {
+      logger.error('XLSX extract error:', err.message);
+      logger.debug('XLSX file path:', filePath);
+      logger.debug('Full XLSX error:', err);
+      return '';
+    }
+  }
+
   // DOCX (both MS Word and Google Docs exported as DOCX)
   if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || mimeType === 'application/vnd.google-apps.document') {
     try {
       logger.debug('Extracting DOCX from file:', filePath);
+      
+      // Check file size and existence
+      const stats = fs.statSync(filePath);
+      logger.debug(`DOCX file size: ${stats.size} bytes`);
+      
+      if (stats.size === 0) {
+        logger.warn('DOCX file is empty (0 bytes)');
+        return '';
+      }
+      
       const result = await mammoth.extractRawText({ path: filePath });
+      logger.debug(`DOCX extracted ${result.value.length} characters`);
       return result.value;
     } catch (err) {
-      logger.error('DOCX extract error:', err);
+      logger.error('DOCX extract error:', err.message);
+      logger.debug('DOCX file path:', filePath);
+      logger.debug('Full DOCX error:', err);
+      
+      // Try reading as plain text fallback
+      try {
+        logger.debug('Attempting plain text fallback for DOCX...');
+        const content = fs.readFileSync(filePath, 'utf8');
+        if (content.trim()) {
+          logger.debug('Plain text fallback succeeded');
+          return content;
+        }
+      } catch (fallbackErr) {
+        logger.debug('Plain text fallback also failed:', fallbackErr.message);
+      }
+      
       return '';
     }
   }
@@ -74,14 +161,31 @@ async function extractText(filePath, mimeType) {
 }
 
 // -------------------------
+// GOOGLE LINK GENERATOR
+// -------------------------
+function generateGoogleLink(fileId, mimeType) {
+  if (mimeType === 'application/vnd.google-apps.document') {
+    return `https://docs.google.com/document/d/${fileId}`;
+  }
+  if (mimeType === 'application/vnd.google-apps.spreadsheet') {
+    return `https://docs.google.com/spreadsheets/d/${fileId}`;
+  }
+  if (mimeType === 'application/vnd.google-apps.presentation') {
+    return `https://docs.google.com/presentation/d/${fileId}`;
+  }
+  return `https://drive.google.com/file/d/${fileId}`;
+}
+
+// -------------------------
 // EXTENSION MAP
 // -------------------------
 function getExtension(mimeType, fileName) {
   const map = {
     'application/pdf': '.pdf',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
     'application/vnd.google-apps.document': '.docx',
-    'application/vnd.google-apps.spreadsheet': '.pdf',
+    'application/vnd.google-apps.spreadsheet': '.xlsx',
     'application/vnd.google-apps.presentation': '.pdf',
     'text/plain': '.txt',
     'text/csv': '.csv',
@@ -220,16 +324,36 @@ async function ingestDriveFolder(folderId) {
         const ext = getExtension(file.mimeType, file.name);
         const destPath = path.join(tmpDir, `${file.id}${ext}`);
 
-        await downloadFile(file.id, destPath, file.mimeType);
+        // For Google Sheets, try API first, fallback to XLSX export
+        let text = '';
+        if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
+          logger.debug(`  📊 Reading Google Sheet: ${file.name}`);
+          
+          // Try Sheets API first (no download needed)
+          text = await extractText(null, file.mimeType, file.id);
+          
+          // If Sheets API failed, download and try XLSX
+          if (!text || text.trim().length === 0) {
+            logger.debug(`  ⚠️  Sheets API failed, trying XLSX export...`);
+            await downloadFile(file.id, destPath, file.mimeType);
+            
+            if (fs.existsSync(destPath)) {
+              text = await extractText(destPath, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', file.id);
+            }
+          }
+        } else {
+          // Download and extract other file types
+          await downloadFile(file.id, destPath, file.mimeType);
 
-        if (!fs.existsSync(destPath)) {
-          logger.warn(`  ⚠️  Missing file after download: ${file.name}`);
-          failedCount += 1;
-          // eslint-disable-next-line no-continue
-          continue;
+          if (!fs.existsSync(destPath)) {
+            logger.warn(`  ⚠️  Missing file after download: ${file.name}`);
+            failedCount += 1;
+            // eslint-disable-next-line no-continue
+            continue;
+          }
+
+          text = await extractText(destPath, file.mimeType, file.id);
         }
-
-        const text = await extractText(destPath, file.mimeType);
 
         if (text?.trim()) {
           await addMany([
@@ -240,7 +364,9 @@ async function ingestDriveFolder(folderId) {
                 name: file.name,
                 mimeType: file.mimeType,
                 folderPath: file.folderPath || '',
-                modifiedTime: file.modifiedTime
+                modifiedTime: file.modifiedTime,
+                extension: ext,
+                googleLink: generateGoogleLink(file.id, file.mimeType)
               }
             }
           ]);
