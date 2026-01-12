@@ -1,4 +1,4 @@
-import { chatWithHistory } from './geminiService.js';
+import { chatWithHistory, chat } from './geminiService.js';
 import { search as vectorSearch, getStats as vectorGetStats } from './vectorService.js';
 import emailService from './emailService.js';
 import logger from '../config/logger.js';
@@ -95,7 +95,12 @@ const defineTools = () => {
         });
         return {
           success: true,
-          message: `Email sent to ${params.to}`
+          message: `Email sent to ${params.to}`,
+          sentEmail: {
+            to: params.to,
+            subject: params.subject,
+            body: params.message
+          }
         };
       }
     },
@@ -112,6 +117,110 @@ const defineTools = () => {
         return {
           success: true,
           stats
+        };
+      }
+    },
+    {
+      name: 'summarizeDocument',
+      description:
+        'Generate a summary of a specific document. Use when user asks to summarize a document or get document overview.',
+      parameters: {
+        type: 'object',
+        properties: {
+          documentName: {
+            type: 'string',
+            description: 'Name or part of the name of the document to summarize (e.g., "OPENAI VS CLAUDE")'
+          },
+          maxLength: {
+            type: 'number',
+            description: 'Maximum length of summary in words (default: 200)'
+          }
+        },
+        required: ['documentName']
+      },
+      function: async (params) => {
+        logger.info('Agent calling summarizeDocument:', { documentName: params.documentName });
+
+        // Remove file extension for better matching
+        const documentNameWithoutExt = params.documentName.replace(/\.(pdf|docx?|xlsx?|txt|pptx?)$/i, '');
+        
+        // Try exact match first using metadata filter
+        let searchResults = await vectorSearch(
+          documentNameWithoutExt,
+          5,
+          null, // No keyword filter
+          null, // No distance filter
+          { name: params.documentName } // Exact metadata match
+        );
+
+        console.log('=== SEARCH WITH EXACT NAME FILTER ===');
+        console.log('Looking for name:', params.documentName);
+        console.log('Results:', searchResults?.length || 0);
+        console.log('=== END EXACT SEARCH ===');
+
+        // If no exact match, try partial match with keyword
+        if (!searchResults || searchResults.length === 0) {
+          logger.debug('No exact match, trying partial match');
+          searchResults = await vectorSearch(
+            documentNameWithoutExt,
+            5,
+            documentNameWithoutExt, // Use as keyword
+            null
+          );
+          
+          console.log('=== SEARCH WITH PARTIAL MATCH ===');
+          console.log('Keyword:', documentNameWithoutExt);
+          console.log('Results:', searchResults?.length || 0);
+          if (searchResults?.length > 0) {
+            console.log('Found:', searchResults.map(r => r.metadata.name));
+          }
+          console.log('=== END PARTIAL SEARCH ===');
+        }
+
+        if (!searchResults || searchResults.length === 0) {
+          logger.warn('No document found with name:', params.documentName);
+          return {
+            success: false,
+            message: `Nisam pronašao dokument sa nazivom "${params.documentName}" u bazi.`
+          };
+        }
+
+        // Get the best match (first result after sorting)
+        const document = searchResults[0];
+        logger.info('Document found for summarization:', {
+          fileName: document.metadata.name,
+          textLength: document.text?.length || 0
+        });
+
+        // Get full text from the document
+        const fullText = document.text || '';
+
+        if (fullText.length === 0) {
+          logger.warn('Document has no text content:', document.metadata.name);
+          return {
+            success: false,
+            message: `Dokument "${document.metadata.name}" ne sadrži tekst za sažimanje.`
+          };
+        }
+
+        // Generate summary using Gemini
+        const maxLength = params.maxLength || 200;
+        const summaryPrompt = `Napravi sažetak sledećeg dokumenta u maksimalno ${maxLength} reči. Fokusiraj se na glavne teme i ključne informacije.\n\nDokument:\n${fullText}`;
+
+        logger.debug('Generating summary with Gemini:', { textLength: fullText.length, maxLength });
+        const summary = await chat(summaryPrompt);
+
+        logger.info('Summary generated:', { summaryLength: summary.length });
+
+        return {
+          success: true,
+          documentName: document.metadata.name,
+          folderPath: document.metadata.folderPath || process.env.GOOGLE_DRIVE_FOLDER_ROOT_NAME,
+          googleLink: document.googleLink,
+          extension: document.metadata.extension,
+          summary,
+          originalLength: fullText.length,
+          summaryLength: summary.split(/\s+/).length // Word count
         };
       }
     }
@@ -139,36 +248,30 @@ export const executeTask = async (userPrompt, maxIterations = 5) => {
       role: 'system',
       content: `Ti si AI agent koji pretražuje INTERNE dokumente iz ChromaDB baze podataka.
 
-VAŽNO: TI IMAŠ PRISTUP DOKUMENTIMA! Ne tražiš na internetu, već u lokalnoj bazi dokumenata.
+KRITIČNA PRAVILA:
+1. IMAŠ pristup dokumentima u ChromaDB bazi!
+2. UVEK koristi alate - NIKADA ne odgovaraj direktno bez alata!
+3. NIKADA ne kaži "nemam pristup", "ne mogu otvoriti", "ne mogu pročitati" - TO JE LAŽ!
+4. Dokumenti su VEĆ U BAZI - samo koristi alat!
 
-Kada korisnik pita "gde se spominje XYZ" ili "u kom fajlu je XYZ":
-1. Koristi searchDocuments alat da pretražiš BAZU dokumenata
-2. NIKADA ne kaži "nemam pristup" ili "ne mogu pristupiti internetu"
-3. Ako alat vrati prazne rezultate, reci: "Nisam pronašao dokument koji sadrži taj tekst u bazi."
-
-KRITIČNO PRAVILO: UVEK moraš uključiti googleLink URL u svaki odgovor o dokumentima!
-
-Kada pronađeš dokument, odgovori TAČNO u ovom formatu:
-
-Pronašao sam u dokumentu:
-📄 **[fileName]**
-📂 Putanja: [folderPath]
-🔗 Link: [googleLink URL]
-
-Alati koje IMAŠ:
-- searchDocuments: Pretražuje ChromaDB bazu dokumenata (ne internet!)
+ALATI:
+- searchDocuments: Pretraga dokumenata u bazi
+- summarizeDocument: Sažetak dokumenta iz baze (MORA da se koristi za zahteve "napravi sažetak")
 - sendEmail: Slanje emaila
-- getDocumentStats: Statistika o bazi dokumenata
+- getDocumentStats: Statistika
 
-Primer DOBROG odgovora:
-Korisnik: "Gde se spominje Jelena?"
-Ti: "Pronašao sam u dokumentu:
-📄 **Nested doc 2**
-📂 Putanja: jelena subfolder
-🔗 Link: https://docs.google.com/document/d/abc123"
+OBRATI PAŽNJU:
+Kada korisnik kaže "napravi sažetak dokumenta XYZ":
+- MORAŠ koristiti summarizeDocument alat
+- Parametar documentName: "XYZ" (ime dokumenta)
+- NIKADA direktno ne odgovaraj bez alata!
 
-Primer LOŠEG odgovora (NIKADA ovako):
-"Žao mi je, ne mogu pristupiti internetu..." ❌`
+Kada korisnik kaže "gde se spominje XYZ":
+- MORAŠ koristiti searchDocuments alat
+- NIKADA direktno ne odgovaraj!
+
+Ako alat vrati error/prazno: "Nisam pronašao dokument u bazi."
+Ali NIKADA ne kaži da ne možeš pristupiti - dokumenti su u bazi!`
     },
     {
       role: 'user',
@@ -184,19 +287,18 @@ Primer LOŠEG odgovora (NIKADA ovako):
     logger.debug(`Agent iteration ${iterations}/${maxIterations}`);
 
     // After first tool call, allow Gemini to respond without forcing tools
-    const useTools = toolCalls.length === 0; // Only force tools on first iteration
+    const forceTools = toolCalls.length === 0; // Force tools on first iteration only
 
     // Ask Gemini what to do next
     const response = await chatWithHistory(conversationHistory, {
       temperature: 0.7,
       maxTokens: 1000,
-      tools: useTools
-        ? tools.map((t) => ({
-          name: t.name,
-          description: t.description,
-          parameters: t.parameters
-        }))
-        : null // Don't send tools after first call, let it respond
+      tools: tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters
+      })),
+      forceToolUse: forceTools // Pass flag to force tool usage on first iteration
     });
 
     logger.debug('Gemini response received:', {
@@ -206,6 +308,11 @@ Primer LOŠEG odgovora (NIKADA ovako):
 
     // Check if agent wants to use a tool
     if (response.toolCalls && response.toolCalls.length > 0) {
+      console.log('=== TOOLS REQUESTED BY GEMINI ===');
+      console.log('Tool names:', response.toolCalls.map((tc) => tc.name));
+      console.log('Tool parameters:', JSON.stringify(response.toolCalls, null, 2));
+      console.log('=== END TOOL REQUEST ===');
+      
       logger.info(
         `Agent requested ${response.toolCalls.length} tool calls:`,
         response.toolCalls.map((tc) => tc.name)
@@ -226,6 +333,11 @@ Primer LOŠEG odgovora (NIKADA ovako):
       // eslint-disable-next-line no-restricted-syntax
       for (const toolCall of validToolCalls) {
         const tool = tools.find((t) => t.name === toolCall.name);
+
+        console.log('=== EXECUTING TOOL ===');
+        console.log('Tool name:', toolCall.name);
+        console.log('Parameters:', JSON.stringify(toolCall.parameters, null, 2));
+        console.log('=== START EXECUTION ===');
 
         logger.debug('Executing tool:', toolCall.name, JSON.stringify(toolCall.parameters));
 
@@ -278,6 +390,16 @@ Primer LOŠEG odgovora (NIKADA ovako):
         .filter((tc) => tc.tool === 'searchDocuments')
         .flatMap((tc) => tc.result?.results || []);
 
+      // Extract sent emails (if any)
+      const sentEmails = toolCalls
+        .filter((tc) => tc.tool === 'sendEmail')
+        .flatMap((tc) => tc.result?.sentEmail ? [tc.result.sentEmail] : []);
+
+      // Extract summaries (if any)
+      const summaries = toolCalls
+        .filter((tc) => tc.tool === 'summarizeDocument')
+        .flatMap((tc) => tc.result?.success ? [tc.result] : []);
+
       let finalAnswer = '';
 
       // Format search results - always use our formatting for consistency
@@ -293,12 +415,36 @@ Primer LOŠEG odgovora (NIKADA ovako):
           finalAnswer += `${index + 1}. 📂 **${result.folderPath}**\n`;
           finalAnswer += `   📄 ${fileNameWithExt}\n`;
           if (result.googleLink) {
-            finalAnswer += `   🔗 [Otvori dokument](${result.googleLink})\n`;
+            finalAnswer += `   🔗 <a href="${result.googleLink}" target="_blank" rel="noopener noreferrer">Otvori dokument</a>\n`;
           }
           finalAnswer += '\n';
         });
+      } else if (summaries.length > 0) {
+        // Format document summary
+        finalAnswer = '';
+        summaries.forEach((summary) => {
+          const extension = summary.extension || 'doc';
+          const fileNameWithExt = `${summary.documentName}.${extension}`;
+          
+          finalAnswer += `📝 **Sažetak dokumenta: ${fileNameWithExt}**\n\n`;
+          finalAnswer += `📂 Folder: ${summary.folderPath}\n\n`;
+          finalAnswer += `${summary.summary}\n\n`;
+          finalAnswer += `📊 Originalna dužina: ${summary.originalLength} karaktera\n`;
+          finalAnswer += `📊 Dužina sažetka: ${summary.summaryLength} reči\n\n`;
+          if (summary.googleLink) {
+            finalAnswer += `  🔗 <a href="${summary.googleLink}" target="_blank" rel="noopener noreferrer">Otvori dokument</a>\n`;
+          }
+        });
+      } else if (sentEmails.length > 0) {
+        // Format sent email details
+        finalAnswer = '✅ Email uspešno poslat!\n\n';
+        sentEmails.forEach((email) => {
+          finalAnswer += `📧 **Primalac:** ${email.to}\n`;
+          finalAnswer += `📋 **Predmet:** ${email.subject}\n`;
+          finalAnswer += `📝 **Poruka:**\n${email.body}\n`;
+        });
       } else {
-        // No search results - use Gemini's text response
+        // No search results or emails - use Gemini's text response
         finalAnswer = response.text;
       }
 

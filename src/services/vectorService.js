@@ -114,8 +114,9 @@ export const addMany = async (documents) => {
  * @param {number} nResults - Number of results to return
  * @param {string} keyword - Optional keyword to filter results (exact text match)
  * @param {number} maxDistance - Optional max distance threshold (lower = more similar)
+ * @param {Object} where - Optional metadata filter (e.g., {name: "document.pdf"})
  */
-export const search = async (query, nResults = 5, keyword = null, maxDistance = 1) => {
+export const search = async (query, nResults = 5, keyword = null, maxDistance = 1, where = null) => {
   try {
     if (!collection) {
       await initialize();
@@ -124,11 +125,20 @@ export const search = async (query, nResults = 5, keyword = null, maxDistance = 
     // Create embedding for query using Gemini
     const queryEmbedding = await createEmbedding(query);
 
-    // Search in ChromaDB
-    const results = await collection.query({
+    // Build query options
+    const queryOptions = {
       queryEmbeddings: [queryEmbedding],
       nResults: keyword ? nResults * 3 : nResults // Get more results if filtering by keyword
-    });
+    };
+
+    // Add metadata filter if provided
+    if (where) {
+      queryOptions.where = where;
+      logger.info('Using metadata filter:', where);
+    }
+
+    // Search in ChromaDB
+    const results = await collection.query(queryOptions);
 
     logger.info(`Found ${results.ids[0].length} results`);
 

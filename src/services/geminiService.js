@@ -24,6 +24,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
  * @returns {Promise<string>} - The AI response
  */
 export const chat = async (prompt, options = {}, requestId = null) => {
+  console.log('=== CHAT PROMPT ===',prompt);
   // Input validation
   if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
     throw new AppError('Valid prompt is required', 400, true, ERROR_CODES.BAD_REQUEST);
@@ -76,6 +77,7 @@ export const chat = async (prompt, options = {}, requestId = null) => {
  * @param {number} [options.maxTokens=DEFAULT_MAX_TOKENS] - Maximum tokens in response (default: 500)
  * @param {number} [options.temperature=DEFAULT_TEMPERATURE] - Creativity level 0-2 (default: 0.7)
  * @param {Array} [options.tools] - Function/tool definitions for agent (optional)
+ * @param {boolean} [options.forceToolUse=true] - Force tool usage when tools are available (default: true)
  * @param {string} [requestId=null] - Request ID for logging
  * @returns {Promise<Object>} - Response with text and/or tool calls
  */
@@ -85,7 +87,7 @@ export const chatWithHistory = async (messages, options = {},requestId = null) =
     throw new AppError('Valid messages array is required', 400, true, ERROR_CODES.BAD_REQUEST);
   }
 
-  const { model = DEFAULT_CHAT_MODEL, maxTokens = DEFAULT_MAX_TOKENS, temperature = DEFAULT_TEMPERATURE, tools = null } = options;
+  const { model = DEFAULT_CHAT_MODEL, maxTokens = DEFAULT_MAX_TOKENS, temperature = DEFAULT_TEMPERATURE, tools = null, forceToolUse = true } = options;
 
   try {
     logger.info('Sending conversation to Gemini', {
@@ -115,14 +117,23 @@ export const chatWithHistory = async (messages, options = {},requestId = null) =
         }
       ];
 
-      // Force Gemini to use tools when available
-      modelConfig.toolConfig = {
-        functionCallingConfig: {
-          mode: 'ANY' // Force Gemini to ALWAYS use a tool
-        }
-      };
-
-      logger.debug('Tool configuration:', { mode: modelConfig.toolConfig.functionCallingConfig.mode });
+      // Force Gemini to use tools when requested (default: true)
+      if (forceToolUse) {
+        modelConfig.toolConfig = {
+          functionCallingConfig: {
+            mode: 'ANY' // Force Gemini to use a tool
+          }
+        };
+        logger.debug('Tool configuration: FORCED (mode: ANY)');
+      } else {
+        // Allow Gemini to choose whether to use tool or respond
+        modelConfig.toolConfig = {
+          functionCallingConfig: {
+            mode: 'AUTO' // Let Gemini decide
+          }
+        };
+        logger.debug('Tool configuration: AUTO (Gemini can choose)');
+      }
     }
 
     const genModel = genAI.getGenerativeModel(modelConfig);
