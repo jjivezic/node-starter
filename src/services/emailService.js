@@ -4,6 +4,7 @@ import logger from '../config/logger.js';
 import { 
   baseEmailTemplate, 
   welcomeEmailBody, 
+  welcomeAIBody,
   passwordResetBody, 
   verificationEmailBody 
 } from '../templates/emailTemplate.js';
@@ -100,6 +101,7 @@ class EmailService {
 
   async sendEmail({ to, subject, text, html }) {
     
+    console.log('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', to, 'SUBJECT:', subject);
     try {
       const transporter = await this.getTransport();
 
@@ -188,6 +190,20 @@ class EmailService {
       html
     });
   }
+
+  async sendAiEmail({ to, subject, html }) {
+    const htmlContent = baseEmailTemplate({
+      title: 'AI Generated Email',
+      body: welcomeAIBody(html)
+    });
+
+    return this.sendEmail({
+      to,
+      subject,
+      html: htmlContent
+    });
+  }
 }
+
 
 export default new EmailService();

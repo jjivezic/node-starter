@@ -121,3 +121,15 @@ export const verificationEmailBody = (name, verifyUrl) => `
   </table>
   <p style="font-size: 16px; margin: 15px 0; color: #333333; font-family: Arial, Helvetica, sans-serif;" class="email-text">If you didn't create an account, you can safely ignore this email.</p>
 `;
+
+export const welcomeAIBody = (text) => `
+  <h2 style="color: #667eea; font-size: 24px; margin-top: 0; font-family: Arial, Helvetica, sans-serif;" class="email-heading"> ${text}!</h2>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+      <td style="padding: 20px 0;">
+        <div style="height: 1px; background-color: #e0e0e0;" class="divider-line"></div>
+      </td>
+    </tr>
+  </table>
+  <p style="font-size: 16px; margin: 15px 0; color: #333333; font-family: Arial, Helvetica, sans-serif;" class="email-text">If you have any questions, feel free to reach out to our support team.</p>
+`;

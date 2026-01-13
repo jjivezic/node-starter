@@ -48,8 +48,9 @@ const defineTools = () => {
           params.query,
           params.nResults || 10,
           params.keyword || null,
-          null // No distance filter, let all results through
+          1.5 // Distance filter - only return results with distance < 1.5 (higher quality matches)
         );
+        
         logger.info(`Found ${results.length} documents`);
         return {
           success: true,
@@ -67,7 +68,7 @@ const defineTools = () => {
     },
     {
       name: 'sendEmail',
-      description: 'Send an email to a recipient. Use this when user asks to send information via email.',
+      description: 'Send an email to a recipient. Use this when user asks to send information via email. Extract recipient name if mentioned. Write a professional, well-formatted message.',
       parameters: {
         type: 'object',
         properties: {
@@ -75,29 +76,37 @@ const defineTools = () => {
             type: 'string',
             description: 'Recipient email address'
           },
+          recipientName: {
+            type: 'string',
+            description: 'Recipient first name (e.g., "Jelena", "John"). Extract from context if user mentions it.'
+          },
           subject: {
             type: 'string',
-            description: 'Email subject line'
+            description: 'Email subject line - make it clear and professional'
           },
           message: {
             type: 'string',
-            description: 'Email message body (plain text or HTML)'
+            description: 'Email message body - write a professional, polite, well-formatted message. If recipent and sender are unknow add general greetings like "Hello" and sign with "Best regards".'
           }
         },
         required: ['to', 'subject', 'message']
       },
       function: async (params) => {
         logger.info('Agent calling sendEmail:', { to: params.to, subject: params.subject });
-        await emailService.sendEmail({
+        
+
+        
+        await emailService.sendAiEmail({
           to: params.to,
           subject: params.subject,
-          html: params.message
+          html:  params.message
         });
         return {
           success: true,
           message: `Email sent to ${params.to}`,
           sentEmail: {
             to: params.to,
+            recipientName: params.recipientName,
             subject: params.subject,
             body: params.message
           }
@@ -134,12 +143,16 @@ const defineTools = () => {
           maxLength: {
             type: 'number',
             description: 'Maximum length of summary in words (default: 200)'
-          }
+          },
+          query: {
+            type: 'string',
+            description: 'The semantic search query - describe what you are looking for'
+          },
         },
-        required: ['documentName']
+        required: ['documentName', 'query']
       },
       function: async (params) => {
-        logger.info('Agent calling summarizeDocument:', { documentName: params.documentName });
+        logger.info('Agent calling summarizeDocument&&&&&&1111111111111111111:', params?.query );
 
         // Remove file extension for better matching
         const documentNameWithoutExt = params.documentName.replace(/\.(pdf|docx?|xlsx?|txt|pptx?)$/i, '');
@@ -199,13 +212,13 @@ const defineTools = () => {
           logger.warn('Document has no text content:', document.metadata.name);
           return {
             success: false,
-            message: `Dokument "${document.metadata.name}" ne sadrži tekst za sažimanje.`
+            message: `No text content found in document "${document.metadata.name}".`
           };
         }
 
-        // Generate summary using Gemini
+        // Generate summary using Gemini - it will respond in the same language as the user's question
         const maxLength = params.maxLength || 200;
-        const summaryPrompt = `Napravi sažetak sledećeg dokumenta u maksimalno ${maxLength} reči. Fokusiraj se na glavne teme i ključne informacije.\n\nDokument:\n${fullText}`;
+        const summaryPrompt = `Create a summary of the following document in maximum ${maxLength} words. Focus on the main topics and key information.\n\nDocument:\n${fullText}`;
 
         logger.debug('Generating summary with Gemini:', { textLength: fullText.length, maxLength });
         const summary = await chat(summaryPrompt);
@@ -246,32 +259,30 @@ export const executeTask = async (userPrompt, maxIterations = 5) => {
   const conversationHistory = [
     {
       role: 'system',
-      content: `Ti si AI agent koji pretražuje INTERNE dokumente iz ChromaDB baze podataka.
+      content: `You are an AI agent that searches INTERNAL documents from ChromaDB database.
 
-KRITIČNA PRAVILA:
-1. IMAŠ pristup dokumentima u ChromaDB bazi!
-2. UVEK koristi alate - NIKADA ne odgovaraj direktno bez alata!
-3. NIKADA ne kaži "nemam pristup", "ne mogu otvoriti", "ne mogu pročitati" - TO JE LAŽ!
-4. Dokumenti su VEĆ U BAZI - samo koristi alat!
+CRITICAL RULES:
+1. You HAVE access to documents in ChromaDB!
+2. ALWAYS use tools to access documents
+3. NEVER say "I don't have access", "I can't open", "I don't understand" - THAT'S A LIE!
+4. Documents are ALREADY IN DATABASE - use tools and respond with results
 
-ALATI:
-- searchDocuments: Pretraga dokumenata u bazi
-- summarizeDocument: Sažetak dokumenta iz baze (MORA da se koristi za zahteve "napravi sažetak")
-- sendEmail: Slanje emaila
-- getDocumentStats: Statistika
+TOOLS:
+- searchDocuments: Search documents in database
+- summarizeDocument: Summarize a specific document
+- sendEmail: Send email
+- getDocumentStats: Database statistics
 
-OBRATI PAŽNJU:
-Kada korisnik kaže "napravi sažetak dokumenta XYZ":
-- MORAŠ koristiti summarizeDocument alat
-- Parametar documentName: "XYZ" (ime dokumenta)
-- NIKADA direktno ne odgovaraj bez alata!
+IMPORTANT WORKFLOW:
+Respond in the same language as the user's question
 
-Kada korisnik kaže "gde se spominje XYZ":
-- MORAŠ koristiti searchDocuments alat
-- NIKADA direktno ne odgovaraj!
+NEVER say "I don't understand" or "repeat" after getting tool results!
+If tool returns results, you MUST respond with those results!
 
-Ako alat vrati error/prazno: "Nisam pronašao dokument u bazi."
-Ali NIKADA ne kaži da ne možeš pristupiti - dokumenti su u bazi!`
+LANGUAGE: Respond in the same language as the user's question (English, Serbian, etc.)
+
+If tool returns empty: "I didn't find any documents in the database."
+If tool returns results: "I found [number] documents: [list]"`
     },
     {
       role: 'user',
@@ -300,7 +311,7 @@ Ali NIKADA ne kaži da ne možeš pristupiti - dokumenti su u bazi!`
       })),
       forceToolUse: forceTools // Pass flag to force tool usage on first iteration
     });
-
+    console.log('=== GEMINI RESPONSExxxxxxxxxxxxx ===',response);
     logger.debug('Gemini response received:', {
       hasToolCalls: !!response.toolCalls,
       hasText: !!response.text
@@ -350,17 +361,29 @@ Ali NIKADA ne kaži da ne možeš pristupiti - dokumenti su u bazi!`
             result
           });
 
-          console.log('=== TOOL RESULT BEING SENT TO GEMINI ===');
+          console.log('=== TOOL RESULT BEING SENT TO GEMINI ===',toolCall);
           console.log(JSON.stringify(result, null, 2));
           console.log('=== END TOOL RESULT ===');
 
           logger.debug(`Tool ${toolCall.name} result:`, JSON.stringify(result).substring(0, 200));
 
-          // Add tool result to conversation
+          // Add instruction for Gemini based on tool type
+          let instruction = '';
+          if (toolCall.name === 'searchDocuments' && result.count > 0) {
+            instruction = `\n\nYou found ${result.count} document${result.count === 1 ? '' : 's'}. Present results in user's language. DO NOT call searchDocuments again.`;
+          } else if (toolCall.name === 'searchDocuments' && result.count === 0) {
+            instruction = '\n\nNo documents found. Tell user in their language. DO NOT call tools again.';
+          } else if (toolCall.name === 'summarizeDocument' && result.success) {
+            instruction = "\n\nDocument summarized. Present in user's language. DO NOT call tools again.";
+          } else if (toolCall.name === 'sendEmail' && result.success) {
+            instruction = '\n\nEmail sent successfully. Confirm to user in their language. DO NOT call sendEmail again.';
+          }
+
+          // Add tool result to conversation with instruction
           conversationHistory.push({
             role: 'function',
             name: toolCall.name,
-            content: JSON.stringify(result)
+            content: JSON.stringify(result) + instruction
           });
         } catch (error) {
           logger.error(`Tool ${toolCall.name} failed:`, error);
@@ -384,7 +407,7 @@ Ali NIKADA ne kaži da ne možeš pristupiti - dokumenti su u bazi!`
         toolCallsUsed: toolCalls.length,
         iterations
       });
-
+      
       // Extract googleLinks from search results (if any)
       const searchResults = toolCalls
         .filter((tc) => tc.tool === 'searchDocuments')
@@ -402,49 +425,46 @@ Ali NIKADA ne kaži da ne možeš pristupiti - dokumenti su u bazi!`
 
       let finalAnswer = '';
 
-      // Format search results - always use our formatting for consistency
+      // Format results with simple universal labels
       if (searchResults.length > 0) {
-        // Build formatted response
-        finalAnswer = `Pronašao sam ${searchResults.length} ${searchResults.length === 1 ? 'dokument' : 'dokumenata'}:\n\n`;
-        
+        // Use Gemini's text response which will be in user's language
+        finalAnswer = response.text + '\n\n';
+        console.log('=== FORMATTING SEARCH RESULTS ===',finalAnswer);
         searchResults.forEach((result, index) => {
-          // Extract extension from path
           const extension = result.path ? result.path.split('.').pop() : '';
           const fileNameWithExt = extension ? `${result.fileName}.${extension}` : result.fileName;
-          
+           finalAnswer += '\n *************************** \n';
           finalAnswer += `${index + 1}. 📂 **${result.folderPath}**\n`;
           finalAnswer += `   📄 ${fileNameWithExt}\n`;
           if (result.googleLink) {
-            finalAnswer += `   🔗 <a href="${result.googleLink}" target="_blank" rel="noopener noreferrer">Otvori dokument</a>\n`;
+            finalAnswer += `   🔗 <a href="${result.googleLink}" target="_blank" rel="noopener noreferrer">Open</a>\n`;
           }
           finalAnswer += '\n';
         });
       } else if (summaries.length > 0) {
-        // Format document summary
-        finalAnswer = '';
+        // Use Gemini's text response which contains the translated summary in user's language
+        finalAnswer = response.text + '\n\n';
         summaries.forEach((summary) => {
           const extension = summary.extension || 'doc';
-          const fileNameWithExt = `${summary.documentName}.${extension}`;
+          const fileNameWithExt = `${summary.documentName}${extension}`;
           
-          finalAnswer += `📝 **Sažetak dokumenta: ${fileNameWithExt}**\n\n`;
-          finalAnswer += `📂 Folder: ${summary.folderPath}\n\n`;
-          finalAnswer += `${summary.summary}\n\n`;
-          finalAnswer += `📊 Originalna dužina: ${summary.originalLength} karaktera\n`;
-          finalAnswer += `📊 Dužina sažetka: ${summary.summaryLength} reči\n\n`;
+          finalAnswer += `📝 **${fileNameWithExt}**\n`;
+          finalAnswer += `📂 ${summary.folderPath}\n`;
           if (summary.googleLink) {
-            finalAnswer += `  🔗 <a href="${summary.googleLink}" target="_blank" rel="noopener noreferrer">Otvori dokument</a>\n`;
+            finalAnswer += `🔗 <a href="${summary.googleLink}" target="_blank" rel="noopener noreferrer">Open document</a>\n`;
           }
+          finalAnswer += '\n';
         });
       } else if (sentEmails.length > 0) {
-        // Format sent email details
-        finalAnswer = '✅ Email uspešno poslat!\n\n';
+        // Use Gemini's text which will be in user's language
+        finalAnswer = response.text + '\n\n';
         sentEmails.forEach((email) => {
-          finalAnswer += `📧 **Primalac:** ${email.to}\n`;
-          finalAnswer += `📋 **Predmet:** ${email.subject}\n`;
-          finalAnswer += `📝 **Poruka:**\n${email.body}\n`;
+          finalAnswer += `📧 ${email.to}\n`;
+          finalAnswer += `📋 ${email.subject}\n`;
+          finalAnswer += `📝 ${email.body}\n`;
         });
       } else {
-        // No search results or emails - use Gemini's text response
+        // No special formatting - use Gemini's text response
         finalAnswer = response.text;
       }
 

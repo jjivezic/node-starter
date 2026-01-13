@@ -356,12 +356,15 @@ async function ingestDriveFolder(folderId) {
         }
 
         if (text?.trim()) {
+          // Remove extension from name (it's stored separately in extension field)
+          const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+          
           await addMany([
             {
               id: file.id,
               text,
               metadata: {
-                name: file.name,
+                name: nameWithoutExt,
                 mimeType: file.mimeType,
                 folderPath: file.folderPath || '',
                 modifiedTime: file.modifiedTime,
